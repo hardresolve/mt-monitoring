@@ -1,65 +1,119 @@
-import Image from "next/image";
+import Link from 'next/link'
+import Image from 'next/image'
 
 export default function Home() {
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <main style={{
+      minHeight: '100vh',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      fontFamily: 'sans-serif',
+      position: 'relative',
+      overflow: 'hidden',
+    }}>
+
+      {/* Background image */}
+      <Image
+        src="/bg.webp"
+        alt="School background"
+        fill
+        priority
+        style={{ objectFit: 'cover', objectPosition: 'center' }}
+      />
+
+      {/* Dark overlay for readability */}
+      <div style={{
+        position: 'absolute',
+        inset: 0,
+        backgroundColor: 'rgba(10, 30, 70, 0.65)',
+        backdropFilter: 'blur(2px)',
+      }} />
+
+      {/* Card */}
+      <div style={{
+        position: 'relative',
+        zIndex: 1,
+        background: 'rgba(255, 255, 255, 0.10)',
+        border: '1px solid rgba(255, 255, 255, 0.25)',
+        backdropFilter: 'blur(16px)',
+        WebkitBackdropFilter: 'blur(16px)',
+        padding: '2.5rem 3rem',
+        borderRadius: '16px',
+        textAlign: 'center',
+        maxWidth: '420px',
+        width: '90%',
+        boxShadow: '0 8px 32px rgba(0,0,0,0.35)',
+      }}>
+
+        {/* School logo */}
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '16px' }}>
+          <Image
+            src="/school.webp"
+            alt="Sta. Ana National High School Logo"
+            width={90}
+            height={90}
+            style={{ borderRadius: '50%', objectFit: 'cover', border: '3px solid rgba(255,255,255,0.4)' }}
+          />
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
-  );
+
+        {/* School name */}
+        <p style={{
+          fontSize: '11px',
+          fontWeight: 600,
+          letterSpacing: '0.12em',
+          textTransform: 'uppercase',
+          color: 'rgba(200, 220, 255, 0.85)',
+          marginBottom: '6px',
+        }}>
+          Sta. Ana National High School
+        </p>
+
+        {/* App title */}
+        <h1 style={{
+          fontSize: '22px',
+          fontWeight: 700,
+          color: '#ffffff',
+          marginBottom: '6px',
+          lineHeight: 1.3,
+        }}>
+          Master Teacher<br />Monitoring System
+        </h1>
+
+        <div style={{
+          width: '40px',
+          height: '3px',
+          background: 'linear-gradient(90deg, #4d94ff, #a78bfa)',
+          borderRadius: '2px',
+          margin: '14px auto 20px',
+        }} />
+
+        <p style={{
+          fontSize: '13px',
+          color: 'rgba(200, 215, 255, 0.75)',
+          marginBottom: '28px',
+          lineHeight: 1.5,
+        }}>
+          Track, manage, and monitor teacher performance and records in one place.
+        </p>
+
+        <Link href="/login" style={{
+          display: 'inline-block',
+          background: 'linear-gradient(135deg, #1a56db, #6d28d9)',
+          color: 'white',
+          padding: '11px 32px',
+          borderRadius: '8px',
+          textDecoration: 'none',
+          fontSize: '14px',
+          fontWeight: 600,
+          letterSpacing: '0.03em',
+          boxShadow: '0 4px 14px rgba(26, 86, 219, 0.5)',
+          transition: 'opacity 0.2s',
+        }}>
+          Go to Login →
+        </Link>
+      </div>
+    </main>
+  )
 }
