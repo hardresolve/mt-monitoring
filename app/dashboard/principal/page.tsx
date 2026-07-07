@@ -43,7 +43,7 @@ export default function PrincipalDashboard() {
       .eq('id', user.id)
       .single()
 
-    if (!prof || prof.role !== 'principal') {
+    if (!prof || (prof.role !== 'principal' && prof.role !== 'assistant_principal')) {
       router.push('/login')
       return
     }
@@ -238,7 +238,7 @@ export default function PrincipalDashboard() {
                 padding: '2px 10px',
                 borderRadius: '20px',
                 verticalAlign: 'middle'
-              }}>Principal</span>
+              }}>{profile?.role === 'assistant_principal' ? 'Assistant Principal' : 'Principal'}</span>
             </h1>
           </div>
         </div>
