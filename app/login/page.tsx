@@ -62,6 +62,10 @@ export default function LoginPage() {
       router.push('/dashboard/mentee')
     } else if (userProfile.role === 'principal') {
       router.push('/dashboard/principal')
+    } else if (userProfile.role === 'assistant_principal') {
+      router.push('/dashboard/principal')
+    } else if (userProfile.role === 'head_teacher') {
+      router.push('/dashboard/head_teacher')
     } else {
       setError('Unknown role. Contact your administrator.')
       setLoading(false)
