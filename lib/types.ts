@@ -1,4 +1,4 @@
-export type Role = 'master_teacher' | 'mentee' | 'principal'
+export type Role = 'master_teacher' | 'mentee' | 'principal' | 'assistant_principal' | 'head_teacher'
 
 export type ActivityType =
   | 'classroom_observation'
