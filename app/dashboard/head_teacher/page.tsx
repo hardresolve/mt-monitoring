@@ -19,6 +19,20 @@ const ACTIVITY_TARGETS: Record<string, number> = {
   lac_session: 4,
 }
 
+// Some subject_area values use different naming/abbreviations, and MT
+// records include a trailing grade level (e.g. "Math 10") while head
+// teacher records don't (e.g. "Math"). Normalize both before comparing.
+const SUBJECT_ALIASES: Record<string, string> = {
+  'ap': 'araling panlipunan',
+  'values education': 'esp',
+}
+
+function normalizeSubject(subject: string | null | undefined): string {
+  if (!subject) return ''
+  const base = subject.replace(/\s*\d+\s*$/, '').trim().toLowerCase()
+  return SUBJECT_ALIASES[base] || base
+}
+
 export default function HeadTeacherDashboard() {
   const router = useRouter()
   const [profile, setProfile] = useState<UserProfile | null>(null)
@@ -55,8 +69,11 @@ export default function HeadTeacherDashboard() {
       .select('*')
 
     setAllUsers(users || [])
+    console.log('DEBUG head_teacher profile:', prof)
+    console.log('DEBUG all users count:', (users || []).length)
+    console.log('DEBUG master_teachers in data:', (users || []).filter(u => u.role === 'master_teacher'))
     setMasterTeachers((users || []).filter(
-      u => u.role === 'master_teacher' && u.subject_area === prof.subject_area
+      u => u.role === 'master_teacher' && normalizeSubject(u.subject_area) === normalizeSubject(prof.subject_area)
     ))
 
     const { data: acts } = await supabase
