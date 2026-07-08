@@ -18,9 +18,9 @@ const CURRENT_TERM: Term = 'term1'
 const CURRENT_YEAR = '2026-2027'
 
 const ACTIVITY_TARGETS: Record<string, number> = {
-  classroom_observation: 12,
-  mentoring_coaching: 8,
-  lac_session: 4,
+  classroom_observation: 5,
+  mentoring_coaching: 5,
+  lac_session: 1,
 }
 
 export default function MTDashboard() {
