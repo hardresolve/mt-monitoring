@@ -71,12 +71,16 @@ export default function ChangePasswordPage() {
       return
     }
 
-    const { data: { user } } = await supabase.auth.getUser()
-    if (user) {
-      await supabase
-        .from('users')
-        .update({ must_change_password: false })
-        .eq('id', user.id)
+    const { data: { session } } = await supabase.auth.getSession()
+
+    if (session) {
+      await fetch('/api/auth/complete-password-change', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      })
     }
 
     setLoading(false)
