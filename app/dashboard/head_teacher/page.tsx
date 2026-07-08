@@ -11,6 +11,7 @@ import {
   Term
 } from '@/lib/types'
 import LogoutButton from '@/app/components/LogoutButton'
+import AdminUserActions from '@/app/components/AdminUserActions'
 import Image from 'next/image'
 
 const ACTIVITY_TARGETS: Record<string, number> = {
@@ -69,9 +70,6 @@ export default function HeadTeacherDashboard() {
       .select('*')
 
     setAllUsers(users || [])
-    console.log('DEBUG head_teacher profile:', prof)
-    console.log('DEBUG all users count:', (users || []).length)
-    console.log('DEBUG master_teachers in data:', (users || []).filter(u => u.role === 'master_teacher'))
     setMasterTeachers((users || []).filter(
       u => u.role === 'master_teacher' && normalizeSubject(u.subject_area) === normalizeSubject(prof.subject_area)
     ))
@@ -518,6 +516,15 @@ export default function HeadTeacherDashboard() {
                         >
                           🖨 Print Report
                         </button>
+                      </div>
+
+                      {/* Admin: email correction + password reset */}
+                      <div style={{ borderTop: '1px solid #f3f4f6', paddingTop: '10px', marginTop: '2px' }}>
+                        <AdminUserActions
+                          targetUserId={mt.id}
+                          currentEmail={mt.email}
+                          onUpdated={loadData}
+                        />
                       </div>
                     </div>
                   )
