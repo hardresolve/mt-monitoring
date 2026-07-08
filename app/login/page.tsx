@@ -36,7 +36,7 @@ export default function LoginPage() {
     while (attempts < 3 && !userProfile) {
       const { data, error: profileError } = await supabase
         .from('users')
-        .select('role')
+        .select('role, must_change_password')
         .eq('id', userId)
         .maybeSingle()
 
@@ -53,6 +53,11 @@ export default function LoginPage() {
     if (!userProfile) {
       setError(`No profile found for user ID: ${userId} — show this to your ICT Coordinator.`)
       setLoading(false)
+      return
+    }
+
+    if (userProfile.must_change_password) {
+      router.push('/change-password')
       return
     }
 
