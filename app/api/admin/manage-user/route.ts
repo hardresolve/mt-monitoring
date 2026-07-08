@@ -35,7 +35,10 @@ export async function POST(req: NextRequest) {
       .single()
 
     if (callerProfileError || !caller) {
-      return NextResponse.json({ error: 'Caller profile not found' }, { status: 403 })
+      return NextResponse.json(
+        { error: 'Caller profile not found', debugAuthUserId: callerAuth.user.id, debugProfileError: callerProfileError?.message },
+        { status: 403 }
+      )
     }
 
     const body = await req.json()
