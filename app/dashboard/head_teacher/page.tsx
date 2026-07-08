@@ -15,9 +15,9 @@ import AdminUserActions from '@/app/components/AdminUserActions'
 import Image from 'next/image'
 
 const ACTIVITY_TARGETS: Record<string, number> = {
-  classroom_observation: 12,
-  mentoring_coaching: 8,
-  lac_session: 4,
+  classroom_observation: 5,
+  mentoring_coaching: 5,
+  lac_session: 1,
 }
 
 // Some subject_area values use different naming/abbreviations, and MT
@@ -378,7 +378,7 @@ export default function HeadTeacherDashboard() {
                   const totalLogged = Object.keys(ACTIVITY_TARGETS).reduce(
                     (sum, type) => sum + getCount(mt.id, type, filterTerm), 0
                   )
-                  const totalTarget = 24
+                  const totalTarget = 11
                   const pct = Math.min(Math.round((totalLogged / totalTarget) * 100), 100)
 
                   return (
