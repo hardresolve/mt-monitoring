@@ -11,6 +11,7 @@ import {
   Term
 } from '@/lib/types'
 import LogoutButton from '@/app/components/LogoutButton'
+import AdminUserActions from '@/app/components/AdminUserActions'
 import Image from 'next/image'
 
 const ACTIVITY_TARGETS: Record<string, number> = {
@@ -499,6 +500,15 @@ export default function PrincipalDashboard() {
                         >
                           🖨 Print Report
                         </button>
+                      </div>
+
+                      {/* Admin: email correction + password reset */}
+                      <div style={{ borderTop: '1px solid #f3f4f6', paddingTop: '10px', marginTop: '2px' }}>
+                        <AdminUserActions
+                          targetUserId={mt.id}
+                          currentEmail={mt.email}
+                          onUpdated={loadData}
+                        />
                       </div>
                     </div>
                   )
