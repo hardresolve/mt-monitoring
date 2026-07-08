@@ -73,14 +73,25 @@ export default function ChangePasswordPage() {
 
     const { data: { session } } = await supabase.auth.getSession()
 
-    if (session) {
-      await fetch('/api/auth/complete-password-change', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${session.access_token}`,
-        },
-      })
+    if (!session) {
+      setError('Could not confirm your session after password change. Please log in again.')
+      setLoading(false)
+      return
+    }
+
+    const clearRes = await fetch('/api/auth/complete-password-change', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session.access_token}`,
+      },
+    })
+    const clearData = await clearRes.json()
+
+    if (!clearRes.ok || !clearData.success) {
+      setError(`Password was changed, but the flag update failed: ${JSON.stringify(clearData)}. Please contact your ICT coordinator.`)
+      setLoading(false)
+      return
     }
 
     setLoading(false)
