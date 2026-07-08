@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Fragment } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import {
@@ -18,6 +18,26 @@ const ACTIVITY_TARGETS: Record<string, number> = {
   classroom_observation: 12,
   mentoring_coaching: 8,
   lac_session: 4,
+}
+
+// Same normalization used in the head-teacher dashboard, so department
+// grouping stays consistent everywhere (handles "AP" -> "Araling
+// Panlipunan", "Values Education" -> "ESP", and strips grade suffixes).
+const SUBJECT_ALIASES: Record<string, string> = {
+  'ap': 'araling panlipunan',
+  'values education': 'esp',
+}
+
+function normalizeSubject(subject: string | null | undefined): string {
+  if (!subject) return ''
+  const base = subject.replace(/\s*\d+\s*$/, '').trim().toLowerCase()
+  return SUBJECT_ALIASES[base] || base
+}
+
+function getGradeLevel(subject: string | null | undefined): number {
+  if (!subject) return 0
+  const match = subject.match(/(\d+)\s*$/)
+  return match ? parseInt(match[1], 10) : 0
 }
 
 export default function PrincipalDashboard() {
@@ -56,7 +76,17 @@ export default function PrincipalDashboard() {
       .select('*')
 
     setAllUsers(users || [])
-    setMasterTeachers((users || []).filter(u => u.role === 'master_teacher'))
+    const mts = (users || []).filter(u => u.role === 'master_teacher')
+    mts.sort((a, b) => {
+      const deptA = normalizeSubject(a.subject_area)
+      const deptB = normalizeSubject(b.subject_area)
+      if (deptA !== deptB) return deptA.localeCompare(deptB)
+      const gradeA = getGradeLevel(a.subject_area)
+      const gradeB = getGradeLevel(b.subject_area)
+      if (gradeA !== gradeB) return gradeA - gradeB
+      return a.full_name.localeCompare(b.full_name)
+    })
+    setMasterTeachers(mts)
 
     const { data: acts } = await supabase
       .from('activities')
@@ -355,7 +385,7 @@ export default function PrincipalDashboard() {
                 gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
                 gap: '16px'
               }}>
-                {masterTeachers.map(mt => {
+                {masterTeachers.map((mt, idx) => {
                   const status = getOverallStatus(mt.id, filterTerm)
                   const ss = statusStyle[status]
                   const disputed = getDisputedCount(mt.id, filterTerm)
@@ -365,7 +395,30 @@ export default function PrincipalDashboard() {
                   const totalTarget = 24
                   const pct = Math.min(Math.round((totalLogged / totalTarget) * 100), 100)
 
+                  const prevDept = idx > 0 ? normalizeSubject(masterTeachers[idx - 1].subject_area) : null
+                  const currentDept = normalizeSubject(mt.subject_area)
+                  const isNewDept = currentDept !== prevDept
+
                   return (
+                    <Fragment key={mt.id}>
+                    {isNewDept && (
+                      <div style={{
+                        gridColumn: '1 / -1',
+                        marginTop: idx === 0 ? 0 : '8px',
+                        paddingBottom: '4px',
+                        borderBottom: '2px solid #e5e7eb'
+                      }}>
+                        <h3 style={{
+                          fontSize: '13px',
+                          fontWeight: 700,
+                          color: '#1a56db',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.05em'
+                        }}>
+                          {mt.subject_area ? mt.subject_area.replace(/\s*\d+\s*$/, '').trim() : 'No Department'}
+                        </h3>
+                      </div>
+                    )}
                     <div key={mt.id} style={{
                       backgroundColor: 'white',
                       border: '1px solid #e5e7eb',
@@ -511,6 +564,7 @@ export default function PrincipalDashboard() {
                         />
                       </div>
                     </div>
+                    </Fragment>
                   )
                 })}
               </div>
