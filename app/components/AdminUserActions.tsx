@@ -35,7 +35,7 @@ export default function AdminUserActions({ targetUserId, currentEmail, onUpdated
       })
       const data = await res.json()
       if (!res.ok) {
-        setMessage({ type: 'error', text: data.error || 'Something went wrong.' })
+        setMessage({ type: 'error', text: JSON.stringify(data) })
       } else {
         setMessage({ type: 'success', text: data.message || 'Done.' })
         setEditing(false)
@@ -64,6 +64,8 @@ export default function AdminUserActions({ targetUserId, currentEmail, onUpdated
         ) : (
           <>
             <input
+              id={`edit-email-${targetUserId}`}
+              name={`edit-email-${targetUserId}`}
               value={emailInput}
               onChange={e => setEmailInput(e.target.value)}
               style={{
