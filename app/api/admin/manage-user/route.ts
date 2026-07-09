@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
 
     const { data: caller, error: callerProfileError } = await supabaseAdmin
       .from('users')
-      .select('id, role, subject_area')
+      .select('id, role, subject_area, is_super_admin')
       .eq('id', callerAuth.user.id)
       .single()
 
@@ -63,13 +63,14 @@ export async function POST(req: NextRequest) {
     }
 
     // ---- Authorization ----
+    const isSuperAdmin = caller.is_super_admin === true
     const isTopLevel = caller.role === 'principal' || caller.role === 'assistant_principal'
     const isHeadTeacherOwnDept =
       caller.role === 'head_teacher' &&
       (target.role === 'master_teacher' || target.role === 'mentee') &&
       normalizeSubject(target.subject_area) === normalizeSubject(caller.subject_area)
 
-    if (!isTopLevel && !isHeadTeacherOwnDept) {
+    if (!isSuperAdmin && !isTopLevel && !isHeadTeacherOwnDept) {
       return NextResponse.json({ error: 'Not authorized to modify this user' }, { status: 403 })
     }
 
