@@ -26,6 +26,8 @@ export interface UserProfile {
   subject_area: string | null
   assigned_mt_id: string | null
   created_at: string
+  is_super_admin?: boolean
+  must_change_password?: boolean
 }
 
 export interface Activity {
