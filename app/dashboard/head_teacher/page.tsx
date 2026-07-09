@@ -266,6 +266,15 @@ export default function HeadTeacherDashboard() {
               {profile?.subject_area || 'Department'} · {masterTeachers.length} Master Teacher{masterTeachers.length !== 1 ? 's' : ''}
             </p>
           </div>
+          {profile?.is_super_admin && (
+            <a href="/admin/all-users" style={{
+              fontSize: '11px', fontWeight: 600, color: '#fff',
+              background: 'rgba(139,92,246,0.35)', padding: '6px 14px',
+              borderRadius: '8px', textDecoration: 'none',
+            }}>
+              ⚙ Super Admin
+            </a>
+          )}
           <LogoutButton />
         </div>
       </div>
