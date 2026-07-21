@@ -63,15 +63,25 @@ export default function MTDashboard() {
 
     setProfile(prof)
 
-    const { data: menteeList } = await supabase
+    const { data: regularMentees } = await supabase
       .from('users')
       .select('*')
       .eq('assigned_mt_id', user.id)
 
-    setMentees(menteeList || [])
+    const { data: mtMentees } = await supabase
+      .from('users')
+      .select('*')
+      .eq('mentor_mt_id', user.id)
 
-    if (menteeList && menteeList.length > 0) {
-      setForm(f => ({ ...f, mentee_id: menteeList[0].id }))
+    const combinedMentees = [
+      ...(regularMentees || []),
+      ...(mtMentees || []),
+    ]
+
+    setMentees(combinedMentees)
+
+    if (combinedMentees.length > 0) {
+      setForm(f => ({ ...f, mentee_id: combinedMentees[0].id }))
     }
 
     const { data: acts } = await supabase
