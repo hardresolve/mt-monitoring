@@ -42,6 +42,20 @@ export default function MTDashboard() {
     notes: '',
   })
 
+  // --- Edit / delete state ---
+  const [editingActivity, setEditingActivity] = useState<Activity | null>(null)
+  const [editForm, setEditForm] = useState({
+    mentee_id: '',
+    activity_type: 'classroom_observation' as ActivityType,
+    date_conducted: '',
+    term: CURRENT_TERM as Term,
+    notes: '',
+  })
+  const [editSubmitting, setEditSubmitting] = useState(false)
+  const [editError, setEditError] = useState('')
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+
   useEffect(() => {
     loadData()
   }, [])
@@ -144,6 +158,97 @@ export default function MTDashboard() {
 
     setActivities(acts || [])
     setSubmitting(false)
+  }
+
+  function openEditModal(act: Activity) {
+    setEditError('')
+    setEditingActivity(act)
+    setEditForm({
+      mentee_id: act.mentee_id,
+      activity_type: act.activity_type,
+      date_conducted: act.date_conducted,
+      term: act.term,
+      notes: act.notes || '',
+    })
+  }
+
+  function closeEditModal() {
+    setEditingActivity(null)
+    setEditError('')
+  }
+
+  async function handleUpdateActivity() {
+    if (!editingActivity) return
+    setEditError('')
+
+    if (!editForm.mentee_id) {
+      setEditError('Please select a mentee.')
+      return
+    }
+    if (!editForm.date_conducted) {
+      setEditError('Please select a date.')
+      return
+    }
+
+    setEditSubmitting(true)
+
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) { setEditSubmitting(false); return }
+
+    // Editing a log resets it to "pending" so the mentee has to
+    // re-confirm the corrected details rather than silently keeping
+    // a stale "verified"/"disputed" status.
+    const { data: updated, error } = await supabase
+      .from('activities')
+      .update({
+        mentee_id: editForm.mentee_id,
+        activity_type: editForm.activity_type,
+        date_conducted: editForm.date_conducted,
+        term: editForm.term,
+        notes: editForm.notes || null,
+        status: 'pending',
+        dispute_reason: null,
+      })
+      .eq('id', editingActivity.id)
+      .eq('mt_id', user.id) // safety: only ever touch your own logs
+      .select()
+      .single()
+
+    if (error || !updated) {
+      setEditError('Failed to update activity. Please try again.')
+      setEditSubmitting(false)
+      return
+    }
+
+    setActivities(prev => prev.map(a => (a.id === updated.id ? updated : a)))
+    setEditSubmitting(false)
+    setEditingActivity(null)
+    setSuccessMsg('Activity updated. Mentee will be notified to re-confirm.')
+  }
+
+  async function handleDeleteActivity(id: string) {
+    setDeletingId(id)
+
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) { setDeletingId(null); return }
+
+    const { error } = await supabase
+      .from('activities')
+      .delete()
+      .eq('id', id)
+      .eq('mt_id', user.id) // safety: only ever touch your own logs
+
+    if (error) {
+      setErrorMsg('Failed to delete activity. Please try again.')
+      setDeletingId(null)
+      setConfirmDeleteId(null)
+      return
+    }
+
+    setActivities(prev => prev.filter(a => a.id !== id))
+    setSuccessMsg('Activity deleted. Mentee will be notified it was removed.')
+    setDeletingId(null)
+    setConfirmDeleteId(null)
   }
 
   function getCount(type: string, term: Term) {
@@ -530,7 +635,7 @@ export default function MTDashboard() {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
               <thead>
                 <tr style={{ backgroundColor: '#f9fafb' }}>
-                  {['Date', 'Activity', 'Mentee', 'Notes', 'Status'].map(h => (
+                  {['Date', 'Activity', 'Mentee', 'Notes', 'Status', 'Actions'].map(h => (
                     <th key={h} style={{
                       textAlign: 'left', padding: '9px 12px',
                       color: '#6b7280', fontWeight: 600,
@@ -583,6 +688,58 @@ export default function MTDashboard() {
                             : ''}
                         </span>
                       </td>
+                      <td style={{ padding: '10px 12px', whiteSpace: 'nowrap' }}>
+                        {confirmDeleteId === act.id ? (
+                          <span style={{ display: 'inline-flex', gap: '6px', alignItems: 'center' }}>
+                            <span style={{ fontSize: '12px', color: '#991b1b' }}>Delete?</span>
+                            <button
+                              onClick={() => handleDeleteActivity(act.id)}
+                              disabled={deletingId === act.id}
+                              style={{
+                                fontSize: '12px', fontWeight: 600, color: 'white',
+                                backgroundColor: '#dc2626', border: 'none',
+                                borderRadius: '6px', padding: '4px 10px',
+                                cursor: deletingId === act.id ? 'not-allowed' : 'pointer'
+                              }}
+                            >
+                              {deletingId === act.id ? '...' : 'Yes'}
+                            </button>
+                            <button
+                              onClick={() => setConfirmDeleteId(null)}
+                              style={{
+                                fontSize: '12px', fontWeight: 600, color: '#374151',
+                                backgroundColor: '#f3f4f6', border: 'none',
+                                borderRadius: '6px', padding: '4px 10px', cursor: 'pointer'
+                              }}
+                            >
+                              No
+                            </button>
+                          </span>
+                        ) : (
+                          <span style={{ display: 'inline-flex', gap: '10px' }}>
+                            <button
+                              onClick={() => openEditModal(act)}
+                              style={{
+                                fontSize: '12px', fontWeight: 600, color: '#1a56db',
+                                background: 'none', border: 'none', cursor: 'pointer',
+                                padding: 0
+                              }}
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => setConfirmDeleteId(act.id)}
+                              style={{
+                                fontSize: '12px', fontWeight: 600, color: '#dc2626',
+                                background: 'none', border: 'none', cursor: 'pointer',
+                                padding: 0
+                              }}
+                            >
+                              Delete
+                            </button>
+                          </span>
+                        )}
+                      </td>
                     </tr>
                   )
                 })}
@@ -592,6 +749,129 @@ export default function MTDashboard() {
         </div>
 
       </div>
+
+      {/* Edit activity modal */}
+      {editingActivity && (
+        <div
+          onClick={closeEditModal}
+          style={{
+            position: 'fixed', inset: 0,
+            backgroundColor: 'rgba(10,20,50,0.55)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: '1rem', zIndex: 50
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              backgroundColor: 'white', borderRadius: '12px',
+              padding: '1.5rem', width: '100%', maxWidth: '480px',
+              boxShadow: '0 20px 50px rgba(0,0,0,0.3)'
+            }}
+          >
+            <div style={{ marginBottom: '16px', paddingBottom: '14px', borderBottom: '1px solid #f3f4f6' }}>
+              <h2 style={{ fontSize: '15px', fontWeight: 700, color: '#111827' }}>Edit Activity Log</h2>
+              <p style={{ fontSize: '12px', color: '#9ca3af' }}>
+                Correcting this will reset its status to Pending so the mentee can re-confirm.
+              </p>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '14px' }}>
+              <div>
+                <label style={{ fontSize: '12px', fontWeight: 500, color: '#374151', display: 'block', marginBottom: '6px' }}>MENTEE</label>
+                <select
+                  value={editForm.mentee_id}
+                  onChange={e => setEditForm(f => ({ ...f, mentee_id: e.target.value }))}
+                  style={{ width: '100%', padding: '9px 12px', border: '1px solid #e5e7eb', borderRadius: '8px', fontSize: '13px', backgroundColor: '#f9fafb', color: '#374151', outline: 'none', cursor: 'pointer' }}
+                >
+                  {mentees.map(m => (
+                    <option key={m.id} value={m.id}>{m.full_name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label style={{ fontSize: '12px', fontWeight: 500, color: '#374151', display: 'block', marginBottom: '6px' }}>ACTIVITY TYPE</label>
+                <select
+                  value={editForm.activity_type}
+                  onChange={e => setEditForm(f => ({ ...f, activity_type: e.target.value as ActivityType }))}
+                  style={{ width: '100%', padding: '9px 12px', border: '1px solid #e5e7eb', borderRadius: '8px', fontSize: '13px', backgroundColor: '#f9fafb', color: '#374151', outline: 'none', cursor: 'pointer' }}
+                >
+                  {Object.entries(ACTIVITY_LABELS).map(([value, label]) => (
+                    <option key={value} value={value}>{label}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label style={{ fontSize: '12px', fontWeight: 500, color: '#374151', display: 'block', marginBottom: '6px' }}>DATE CONDUCTED</label>
+                <input
+                  type="date"
+                  value={editForm.date_conducted}
+                  onChange={e => setEditForm(f => ({ ...f, date_conducted: e.target.value }))}
+                  style={{ width: '100%', padding: '9px 12px', border: '1px solid #e5e7eb', borderRadius: '8px', fontSize: '13px', backgroundColor: '#f9fafb', color: '#374151', outline: 'none', boxSizing: 'border-box' }}
+                />
+              </div>
+              <div>
+                <label style={{ fontSize: '12px', fontWeight: 500, color: '#374151', display: 'block', marginBottom: '6px' }}>TERM</label>
+                <select
+                  value={editForm.term}
+                  onChange={e => setEditForm(f => ({ ...f, term: e.target.value as Term }))}
+                  style={{ width: '100%', padding: '9px 12px', border: '1px solid #e5e7eb', borderRadius: '8px', fontSize: '13px', backgroundColor: '#f9fafb', color: '#374151', outline: 'none', cursor: 'pointer' }}
+                >
+                  {Object.entries(TERM_LABELS).map(([value, label]) => (
+                    <option key={value} value={value}>{label}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ fontSize: '12px', fontWeight: 500, color: '#374151', display: 'block', marginBottom: '6px' }}>
+                NOTES <span style={{ color: '#9ca3af', fontWeight: 400 }}>(optional)</span>
+              </label>
+              <textarea
+                value={editForm.notes}
+                onChange={e => setEditForm(f => ({ ...f, notes: e.target.value }))}
+                rows={3}
+                style={{ width: '100%', padding: '9px 12px', border: '1px solid #e5e7eb', borderRadius: '8px', fontSize: '13px', resize: 'vertical', boxSizing: 'border-box', backgroundColor: '#f9fafb', color: '#374151', outline: 'none' }}
+              />
+            </div>
+
+            {editError && (
+              <div style={{
+                backgroundColor: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '8px',
+                padding: '10px 14px', fontSize: '13px', color: '#991b1b', marginBottom: '12px', fontWeight: 500
+              }}>
+                ⚠️ {editError}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              <button
+                onClick={closeEditModal}
+                style={{
+                  padding: '10px 20px', background: '#f3f4f6', color: '#374151',
+                  border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: 600, cursor: 'pointer'
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleUpdateActivity}
+                disabled={editSubmitting}
+                style={{
+                  padding: '10px 20px',
+                  background: editSubmitting ? 'rgba(100,130,200,0.4)' : 'linear-gradient(135deg, #1a56db, #6d28d9)',
+                  color: 'white', border: 'none', borderRadius: '8px',
+                  fontSize: '13px', fontWeight: 600,
+                  cursor: editSubmitting ? 'not-allowed' : 'pointer'
+                }}
+              >
+                {editSubmitting ? 'Saving...' : 'Save Changes'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   )
 }
