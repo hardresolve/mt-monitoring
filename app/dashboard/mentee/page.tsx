@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import {
@@ -23,10 +23,21 @@ export default function MenteeDashboard() {
   const [disputeActivityId, setDisputeActivityId] = useState<string | null>(null)
   const [disputeReason, setDisputeReason] = useState('')
   const [actionMsg, setActionMsg] = useState<{ id: string; msg: string; type: 'success' | 'error' } | null>(null)
+  const [liveNotice, setLiveNotice] = useState<string | null>(null)
+  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
 
   useEffect(() => {
     loadData()
+    return () => {
+      if (channelRef.current) supabase.removeChannel(channelRef.current)
+    }
   }, [])
+
+  useEffect(() => {
+    if (!liveNotice) return
+    const t = setTimeout(() => setLiveNotice(null), 6000)
+    return () => clearTimeout(t)
+  }, [liveNotice])
 
   async function loadData() {
     const { data: { user } } = await supabase.auth.getUser()
@@ -62,6 +73,37 @@ export default function MenteeDashboard() {
 
     setActivities(acts || [])
     setLoading(false)
+
+    // Live sync: reflect edits/deletes the MT makes to this mentee's
+    // logs immediately, without requiring a page refresh.
+    if (channelRef.current) supabase.removeChannel(channelRef.current)
+
+    const channel = supabase
+      .channel(`mentee-activities-${user.id}`)
+      .on('postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'activities', filter: `mentee_id=eq.${user.id}` },
+        (payload) => {
+          setActivities(prev => [payload.new as Activity, ...prev])
+          setLiveNotice('A new session was logged by your Master Teacher.')
+        }
+      )
+      .on('postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'activities', filter: `mentee_id=eq.${user.id}` },
+        (payload) => {
+          setActivities(prev => prev.map(a => a.id === (payload.new as Activity).id ? (payload.new as Activity) : a))
+          setLiveNotice('A logged session was updated by your Master Teacher — please review it again.')
+        }
+      )
+      .on('postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'activities', filter: `mentee_id=eq.${user.id}` },
+        (payload) => {
+          setActivities(prev => prev.filter(a => a.id !== (payload.old as Activity).id))
+          setLiveNotice('A logged session was removed by your Master Teacher.')
+        }
+      )
+      .subscribe()
+
+    channelRef.current = channel
   }
 
   async function handleConfirm(activity: Activity) {
@@ -230,6 +272,31 @@ export default function MenteeDashboard() {
       </div>
 
       <div style={{ padding: '1.5rem 2rem', maxWidth: '960px', margin: '0 auto' }}>
+
+        {/* Live update banner */}
+        {liveNotice && (
+          <div style={{
+            backgroundColor: '#eff6ff',
+            border: '1px solid #93c5fd',
+            borderRadius: '10px',
+            padding: '10px 16px',
+            marginBottom: '18px',
+            fontSize: '13px',
+            color: '#1e40af',
+            fontWeight: 500,
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center'
+          }}>
+            <span>🔔 {liveNotice}</span>
+            <button
+              onClick={() => setLiveNotice(null)}
+              style={{ background: 'none', border: 'none', color: '#1e40af', cursor: 'pointer', fontSize: '13px', fontWeight: 600 }}
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
 
         {/* Summary cards */}
         <div style={{
