@@ -16,6 +16,26 @@ function normalizeSubject(subject: string | null | undefined): string {
 
 export async function POST(req: NextRequest) {
   try {
+    // ---- Fail loudly if server env vars are missing ----
+    // This is the #1 cause of "admin actions silently do nothing in
+    // production but work locally" — the service role key not being
+    // set (or set for the wrong environment) in Vercel.
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      console.error('[manage-user] Missing env vars', {
+        hasUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
+        hasServiceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+      })
+      return NextResponse.json(
+        {
+          error:
+            'Server is missing SUPABASE_SERVICE_ROLE_KEY (or the Supabase URL). ' +
+            'Check Vercel → Project → Settings → Environment Variables, and make sure ' +
+            'it is enabled for the Production environment, then redeploy.',
+        },
+        { status: 500 }
+      )
+    }
+
     const authHeader = req.headers.get('authorization') || ''
     const token = authHeader.replace('Bearer ', '')
     if (!token) {
@@ -42,11 +62,12 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json()
-    const { action, targetUserId, newEmail } = body as {
+    const { action, targetUserId } = body as {
       action: 'update_email' | 'reset_password'
       targetUserId: string
       newEmail?: string
     }
+    let newEmail = body.newEmail as string | undefined
 
     if (!action || !targetUserId) {
       return NextResponse.json({ error: 'Missing action or targetUserId' }, { status: 400 })
@@ -80,11 +101,30 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'newEmail is required' }, { status: 400 })
       }
 
-      const { error: authUpdateError } = await supabaseAdmin.auth.admin.updateUserById(
+      newEmail = newEmail.trim().toLowerCase()
+
+      // Pre-flight duplicate check so we can give a clear message
+      // instead of a raw Postgres unique-violation error.
+      const { data: existing } = await supabaseAdmin
+        .from('users')
+        .select('id')
+        .ilike('email', newEmail)
+        .neq('id', targetUserId)
+        .maybeSingle()
+
+      if (existing) {
+        return NextResponse.json(
+          { error: `${newEmail} is already used by another account.` },
+          { status: 409 }
+        )
+      }
+
+      const { data: authUpdateData, error: authUpdateError } = await supabaseAdmin.auth.admin.updateUserById(
         targetUserId,
         { email: newEmail, email_confirm: true }
       )
       if (authUpdateError) {
+        console.error('[manage-user] auth.admin.updateUserById failed', authUpdateError)
         return NextResponse.json({ error: authUpdateError.message }, { status: 500 })
       }
 
@@ -94,7 +134,28 @@ export async function POST(req: NextRequest) {
         .eq('id', targetUserId)
 
       if (profileUpdateError) {
+        console.error('[manage-user] profile table update failed', profileUpdateError)
         return NextResponse.json({ error: profileUpdateError.message }, { status: 500 })
+      }
+
+      // Verify the auth-side change actually stuck before reporting
+      // success — catches edge cases where Supabase queues the change
+      // instead of applying it immediately.
+      const { data: verifyAuth } = await supabaseAdmin.auth.admin.getUserById(targetUserId)
+      if (verifyAuth?.user?.email?.toLowerCase() !== newEmail) {
+        console.error('[manage-user] post-update verification mismatch', {
+          expected: newEmail,
+          actual: verifyAuth?.user?.email,
+        })
+        return NextResponse.json(
+          {
+            error:
+              'Email update was submitted but did not take effect immediately. ' +
+              'Check your Supabase Auth settings for "Secure email change" — if enabled, ' +
+              'the change may require confirmation. Consider disabling it for admin-driven updates.',
+          },
+          { status: 500 }
+        )
       }
 
       return NextResponse.json({ success: true, message: `Email updated to ${newEmail}` })
@@ -106,6 +167,7 @@ export async function POST(req: NextRequest) {
         { password: DEFAULT_RESET_PASSWORD }
       )
       if (authResetError) {
+        console.error('[manage-user] password reset failed', authResetError)
         return NextResponse.json({ error: authResetError.message }, { status: 500 })
       }
 
@@ -126,6 +188,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
   } catch (err: any) {
+    console.error('[manage-user] unexpected error', err)
     return NextResponse.json({ error: err.message || 'Unexpected error' }, { status: 500 })
   }
 }
