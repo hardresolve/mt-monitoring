@@ -14,6 +14,26 @@ function normalizeSubject(subject: string | null | undefined): string {
   return SUBJECT_ALIASES[base] || base
 }
 
+// Supabase's own client labels certain Auth API failures as
+// "retryable" (network blips talking to the Auth server, not
+// permission/data errors) — AuthRetryableFetchError is the main one.
+// admin.* methods return {data, error} rather than throwing, so this
+// retries based on the returned error's shape, not a caught exception.
+async function withRetry<T extends { data: any; error: any }>(
+  fn: () => Promise<T>,
+  attempts = 3
+): Promise<T> {
+  let result: T
+  for (let i = 0; i < attempts; i++) {
+    result = await fn()
+    const err = result.error as any
+    const isRetryable = err && (err.name === 'AuthRetryableFetchError' || err.status === 500)
+    if (!err || !isRetryable || i === attempts - 1) return result
+    await new Promise(res => setTimeout(res, 500 * (i + 1)))
+  }
+  return result!
+}
+
 export async function POST(req: NextRequest) {
   try {
     // ---- Fail loudly if server env vars are missing ----
@@ -119,9 +139,8 @@ export async function POST(req: NextRequest) {
         )
       }
 
-      const { data: authUpdateData, error: authUpdateError } = await supabaseAdmin.auth.admin.updateUserById(
-        targetUserId,
-        { email: newEmail, email_confirm: true }
+      const { data: authUpdateData, error: authUpdateError } = await withRetry(() =>
+        supabaseAdmin.auth.admin.updateUserById(targetUserId, { email: newEmail!, email_confirm: true })
       )
       if (authUpdateError) {
         console.error('[manage-user] auth.admin.updateUserById failed', authUpdateError)
@@ -162,9 +181,8 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === 'reset_password') {
-      const { error: authResetError } = await supabaseAdmin.auth.admin.updateUserById(
-        targetUserId,
-        { password: DEFAULT_RESET_PASSWORD }
+      const { error: authResetError } = await withRetry(() =>
+        supabaseAdmin.auth.admin.updateUserById(targetUserId, { password: DEFAULT_RESET_PASSWORD })
       )
       if (authResetError) {
         console.error('[manage-user] password reset failed', authResetError)
