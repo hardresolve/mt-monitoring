@@ -195,9 +195,6 @@ export default function MTDashboard() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { setEditSubmitting(false); return }
 
-    // Editing a log resets it to "pending" so the mentee has to
-    // re-confirm the corrected details rather than silently keeping
-    // a stale "verified"/"disputed" status.
     const { data: updated, error } = await supabase
       .from('activities')
       .update({
@@ -210,7 +207,7 @@ export default function MTDashboard() {
         dispute_reason: null,
       })
       .eq('id', editingActivity.id)
-      .eq('mt_id', user.id) // safety: only ever touch your own logs
+      .eq('mt_id', user.id)
       .select()
       .single()
 
@@ -232,11 +229,18 @@ export default function MTDashboard() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { setDeletingId(null); return }
 
+    // Delete linked confirmations first to avoid foreign key conflict
+    await supabase
+      .from('confirmations')
+      .delete()
+      .eq('activity_id', id)
+
+    // Then delete the activity itself
     const { error } = await supabase
       .from('activities')
       .delete()
       .eq('id', id)
-      .eq('mt_id', user.id) // safety: only ever touch your own logs
+      .eq('mt_id', user.id)
 
     if (error) {
       setErrorMsg('Failed to delete activity. Please try again.')
@@ -246,7 +250,7 @@ export default function MTDashboard() {
     }
 
     setActivities(prev => prev.filter(a => a.id !== id))
-    setSuccessMsg('Activity deleted. Mentee will be notified it was removed.')
+    setSuccessMsg('Activity deleted successfully.')
     setDeletingId(null)
     setConfirmDeleteId(null)
   }
@@ -385,7 +389,6 @@ export default function MTDashboard() {
                 <p style={{ fontSize: '11px', color: '#9ca3af', marginBottom: '10px' }}>
                   {verified} verified · {logged - verified} pending/disputed
                 </p>
-                {/* Progress bar */}
                 <div style={{
                   height: '6px', backgroundColor: '#f3f4f6',
                   borderRadius: '99px', overflow: 'hidden'
@@ -441,7 +444,6 @@ export default function MTDashboard() {
             marginBottom: '14px'
           }}>
 
-            {/* Mentee */}
             <div>
               <label style={{ fontSize: '12px', fontWeight: 500, color: '#374151', display: 'block', marginBottom: '6px', letterSpacing: '0.03em' }}>
                 MENTEE
@@ -468,7 +470,6 @@ export default function MTDashboard() {
               )}
             </div>
 
-            {/* Activity type */}
             <div>
               <label style={{ fontSize: '12px', fontWeight: 500, color: '#374151', display: 'block', marginBottom: '6px', letterSpacing: '0.03em' }}>
                 ACTIVITY TYPE
@@ -489,7 +490,6 @@ export default function MTDashboard() {
               </select>
             </div>
 
-            {/* Date */}
             <div>
               <label style={{ fontSize: '12px', fontWeight: 500, color: '#374151', display: 'block', marginBottom: '6px', letterSpacing: '0.03em' }}>
                 DATE CONDUCTED
@@ -507,7 +507,6 @@ export default function MTDashboard() {
               />
             </div>
 
-            {/* Term */}
             <div>
               <label style={{ fontSize: '12px', fontWeight: 500, color: '#374151', display: 'block', marginBottom: '6px', letterSpacing: '0.03em' }}>
                 TERM
@@ -530,7 +529,6 @@ export default function MTDashboard() {
 
           </div>
 
-          {/* Notes */}
           <div style={{ marginBottom: '16px' }}>
             <label style={{ fontSize: '12px', fontWeight: 500, color: '#374151', display: 'block', marginBottom: '6px', letterSpacing: '0.03em' }}>
               NOTES <span style={{ color: '#9ca3af', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional)</span>
@@ -550,7 +548,6 @@ export default function MTDashboard() {
             />
           </div>
 
-          {/* Feedback messages */}
           {successMsg && (
             <div style={{
               backgroundColor: '#ecfdf5', border: '1px solid #6ee7b7',
