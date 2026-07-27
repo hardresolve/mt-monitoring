@@ -225,25 +225,25 @@ export default function MTDashboard() {
 
   async function handleDeleteActivity(id: string) {
     setDeletingId(id)
+    setErrorMsg('')
 
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { setDeletingId(null); return }
 
-    // Delete linked confirmations first to avoid foreign key conflict
-    await supabase
-      .from('confirmations')
-      .delete()
-      .eq('activity_id', id)
-
-    // Then delete the activity itself
-    const { error } = await supabase
-      .from('activities')
-      .delete()
-      .eq('id', id)
-      .eq('mt_id', user.id)
+    // Deletes the activity and any linked confirmation atomically via
+    // a SECURITY DEFINER function (mt_delete_activity). We used to
+    // delete confirmations then activities directly from the client,
+    // but RLS on "confirmations" is scoped to the mentee who owns it,
+    // so master teachers could never actually remove that row — it
+    // silently deleted 0 rows, then the activities delete failed on
+    // the leftover foreign key. The RPC does its own auth.uid() check
+    // server-side and bypasses that mismatch safely.
+    const { error } = await supabase.rpc('mt_delete_activity', {
+      p_activity_id: id,
+    })
 
     if (error) {
-      setErrorMsg('Failed to delete activity. Please try again.')
+      setErrorMsg(error.message || 'Failed to delete activity. Please try again.')
       setDeletingId(null)
       setConfirmDeleteId(null)
       return
