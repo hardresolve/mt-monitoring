@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import AdminUserActions from '@/app/components/AdminUserActions'
+import AdminAddUserForm from '@/app/components/AdminAddUserForm'
+import AdminRepairLegacyAccounts from '@/app/components/AdminRepairLegacyAccounts'
 import type { UserProfile } from '@/lib/types'
 
 const ROLE_LABELS: Record<string, string> = {
@@ -86,6 +88,12 @@ export default function SuperAdminPage() {
         <p style={{ fontSize: '13px', color: '#6b7280', marginBottom: '20px' }}>
           Correct emails or reset passwords for any account in the system.
         </p>
+
+        <AdminRepairLegacyAccounts />
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '12px' }}>
+          <AdminAddUserForm onCreated={loadUsers} />
+        </div>
 
         <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
           <input
