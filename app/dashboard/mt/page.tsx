@@ -351,6 +351,7 @@ export default function MTDashboard() {
               {profile?.subject_area} · SY {CURRENT_YEAR}
             </p>
           </div>
+          <NotificationBell />
           <LogoutButton />
         </div>
       </div>
