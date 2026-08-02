@@ -14,6 +14,8 @@ import LogoutButton from '@/app/components/LogoutButton'
 import AdminUserActions from '@/app/components/AdminUserActions'
 import Image from 'next/image'
 import NotificationBell from '@/app/components/NotificationBell'
+import AdminOverrideModal from '@/app/components/AdminOverrideModal'
+import OverrideLogPanel from '@/app/components/OverrideLogPanel'
 
 const ACTIVITY_TARGETS: Record<string, number> = {
   classroom_observation: 5,
@@ -50,6 +52,7 @@ export default function PrincipalDashboard() {
   const [loading, setLoading] = useState(true)
   const [filterTerm, setFilterTerm] = useState<Term>('term1')
   const [selectedMT, setSelectedMT] = useState<UserProfile | null>(null)
+  const [resolvingActivity, setResolvingActivity] = useState<Activity | null>(null)
 
   useEffect(() => {
     loadData()
@@ -330,6 +333,13 @@ export default function PrincipalDashboard() {
             </div>
           )
         })()}
+
+        {/* Accountability log: full history of admin dispute resolutions */}
+        {!selectedMT && (
+          <div style={{ marginBottom: '24px' }}>
+            <OverrideLogPanel activities={allActivities} allUsers={allUsers} />
+          </div>
+        )}
 
         {/* Term filter + section title */}
         {!selectedMT && (
@@ -762,6 +772,17 @@ export default function PrincipalDashboard() {
                               {act.dispute_reason}
                             </p>
                           )}
+                          {act.status === 'disputed' && (
+                            <button
+                              onClick={() => setResolvingActivity(act)}
+                              style={{
+                                marginTop: '6px', fontSize: '11px', fontWeight: 600, color: '#1a56db',
+                                background: 'none', border: 'none', cursor: 'pointer', padding: 0
+                              }}
+                            >
+                              Resolve →
+                            </button>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -773,6 +794,18 @@ export default function PrincipalDashboard() {
         )}
 
       </div>
+
+      {resolvingActivity && (
+        <AdminOverrideModal
+          activity={resolvingActivity}
+          menteeName={getUserName(resolvingActivity.mentee_id)}
+          onClose={() => setResolvingActivity(null)}
+          onResolved={(updated) => {
+            setAllActivities(prev => prev.map(a => a.id === updated.id ? updated : a))
+            setResolvingActivity(null)
+          }}
+        />
+      )}
     </main>
   )
 }
