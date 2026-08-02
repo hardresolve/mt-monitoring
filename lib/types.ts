@@ -82,6 +82,7 @@ export const TERM_LABELS: Record<Term, string> = {
   term2: 'Term 2 (September–November 2026)',
   term3: 'Term 3 (January–March 2027)',
 }
+
 export type NotificationType = 'new_activity' | 'activity_updated' | 'activity_disputed' | 'dispute_resolved'
 
 export interface AppNotification {
