@@ -281,6 +281,7 @@ export default function PrincipalDashboard() {
               {masterTeachers.length} Master Teacher{masterTeachers.length !== 1 ? 's' : ''} under supervision
             </p>
           </div>
+          <NotificationBell />
           <LogoutButton />
         </div>
       </div>
