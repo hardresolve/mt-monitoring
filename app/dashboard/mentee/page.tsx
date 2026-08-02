@@ -12,6 +12,7 @@ import {
 } from '@/lib/types'
 import LogoutButton from '@/app/components/LogoutButton'
 import Image from 'next/image'
+import NotificationBell from '@/app/components/NotificationBell'
 
 export default function MenteeDashboard() {
   const router = useRouter()
