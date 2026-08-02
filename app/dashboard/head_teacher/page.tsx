@@ -276,6 +276,7 @@ export default function HeadTeacherDashboard() {
               ⚙ Super Admin
             </a>
           )}
+          <NotificationBell />
           <LogoutButton />
         </div>
       </div>
