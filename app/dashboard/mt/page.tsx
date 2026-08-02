@@ -116,9 +116,6 @@ export default function MTDashboard() {
     if (!form.mentee_id) {
       setErrorMsg('Please select a mentee.')
       return
-    <a href={`/dashboard/portfolio/${mentee.id}`} style={{ fontSize: '12px', color: '#1a56db', fontWeight: 600 
-    View Portfolio →
-    </a>
     }
     if (!form.date_conducted) {
       setErrorMsg('Please select a date.')
