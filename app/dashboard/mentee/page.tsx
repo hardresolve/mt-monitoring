@@ -268,6 +268,7 @@ export default function MenteeDashboard() {
               </p>
             )}
           </div>
+          <NotificationBell />
           <LogoutButton />
         </div>
       </div>
