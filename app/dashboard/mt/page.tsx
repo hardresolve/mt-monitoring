@@ -666,6 +666,14 @@ export default function MTDashboard() {
                       </td>
                       <td style={{ padding: '10px 12px', color: '#374151' }}>
                         {mentee?.full_name || '—'}
+                        {mentee && (
+    
+                            href={`/dashboard/portfolio/${mentee.id}`}
+                            style={{ display: 'block', fontSize: '11px', color: '#1a56db', fontWeight: 600, marginTop: '2px', textDecoration: 'none' }}
+                                                >
+                            View Portfolio →
+                          </a>
+                        )}
                       </td>
                       <td style={{ padding: '10px 12px', color: '#6b7280', maxWidth: '180px' }}>
                         {act.notes ? (
