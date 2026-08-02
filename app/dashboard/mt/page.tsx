@@ -13,6 +13,7 @@ import {
 } from '@/lib/types'
 import LogoutButton from '@/app/components/LogoutButton'
 import Image from 'next/image'
+import NotificationBell from '@/app/components/NotificationBell'
 
 const CURRENT_TERM: Term = 'term1'
 const CURRENT_YEAR = '2026-2027'
