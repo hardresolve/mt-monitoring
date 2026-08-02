@@ -14,15 +14,11 @@ import {
 import LogoutButton from '@/app/components/LogoutButton'
 import Image from 'next/image'
 import NotificationBell from '@/app/components/NotificationBell'
+import TargetTracker from '@/app/components/TargetTracker'
+import SessionTemplatePicker from '@/app/components/SessionTemplatePicker'
 
 const CURRENT_TERM: Term = 'term1'
 const CURRENT_YEAR = '2026-2027'
-
-const ACTIVITY_TARGETS: Record<string, number> = {
-  classroom_observation: 5,
-  mentoring_coaching: 5,
-  lac_session: 1,
-}
 
 export default function MTDashboard() {
   const router = useRouter()
@@ -256,14 +252,6 @@ export default function MTDashboard() {
     setConfirmDeleteId(null)
   }
 
-  function getCount(type: string, term: Term) {
-    return activities.filter(a => a.activity_type === type && a.term === term).length
-  }
-
-  function getVerifiedCount(type: string, term: Term) {
-    return activities.filter(a => a.activity_type === type && a.term === term && a.status === 'verified').length
-  }
-
   const filteredActivities = activities.filter(a => a.term === filterTerm)
 
   const statusColor: Record<string, string> = {
@@ -361,56 +349,11 @@ export default function MTDashboard() {
 
       <div style={{ padding: '1.5rem 2rem', maxWidth: '960px', margin: '0 auto' }}>
 
-        {/* Progress cards */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(3, 1fr)',
-          gap: '14px',
-          marginBottom: '24px'
-        }}>
-          {Object.entries(ACTIVITY_TARGETS).map(([type, target]) => {
-            const logged = getCount(type, CURRENT_TERM)
-            const verified = getVerifiedCount(type, CURRENT_TERM)
-            const pct = Math.min(Math.round((logged / target) * 100), 100)
-            const color = pct >= 100 ? '#059669' : pct >= 50 ? '#d97706' : '#dc2626'
-            const trackColor = pct >= 100 ? '#6ee7b7' : pct >= 50 ? '#fde68a' : '#fca5a5'
-            const accentBorder = pct >= 100 ? '#6ee7b7' : pct >= 50 ? '#fde68a' : '#fca5a5'
-            return (
-              <div key={type} style={{
-                backgroundColor: 'white',
-                border: '1px solid #e5e7eb',
-                borderLeft: `4px solid ${accentBorder}`,
-                borderRadius: '12px',
-                padding: '1.1rem 1.25rem',
-                boxShadow: '0 1px 4px rgba(0,0,0,0.06)'
-              }}>
-                <p style={{ fontSize: '12px', color: '#6b7280', marginBottom: '6px', fontWeight: 500 }}>
-                  {ACTIVITY_LABELS[type as ActivityType]}
-                </p>
-                <p style={{ fontSize: '26px', fontWeight: 700, color, marginBottom: '2px', lineHeight: 1 }}>
-                  {logged}
-                  <span style={{ fontSize: '14px', color: '#9ca3af', fontWeight: 400 }}> / {target}</span>
-                </p>
-                <p style={{ fontSize: '11px', color: '#9ca3af', marginBottom: '10px' }}>
-                  {verified} verified · {logged - verified} pending/disputed
-                </p>
-                <div style={{
-                  height: '6px', backgroundColor: '#f3f4f6',
-                  borderRadius: '99px', overflow: 'hidden'
-                }}>
-                  <div style={{
-                    height: '100%',
-                    width: `${pct}%`,
-                    backgroundColor: trackColor,
-                    borderRadius: '99px',
-                    transition: 'width 0.4s ease'
-                  }} />
-                </div>
-                <p style={{ fontSize: '11px', color, marginTop: '4px', fontWeight: 600 }}>{pct}% complete</p>
-              </div>
-            )
-          })}
-        </div>
+        <TargetTracker
+          activities={activities.filter(a => a.term === CURRENT_TERM)}
+          term={CURRENT_TERM}
+          schoolYear={CURRENT_YEAR}
+        />
 
         {/* Log Activity form */}
         <div style={{
@@ -441,6 +384,10 @@ export default function MTDashboard() {
               <p style={{ fontSize: '12px', color: '#9ca3af' }}>Record a session with your mentee</p>
             </div>
           </div>
+
+          <SessionTemplatePicker
+            onPick={(activity_type, notes) => setForm(f => ({ ...f, activity_type, notes }))}
+          />
 
           <div style={{
             display: 'grid',
