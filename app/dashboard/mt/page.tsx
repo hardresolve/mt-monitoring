@@ -458,20 +458,38 @@ export default function MTDashboard() {
                   No mentees assigned yet. Contact your administrator.
                 </p>
               ) : (
-                <select
-                  value={form.mentee_id}
-                  onChange={e => setForm(f => ({ ...f, mentee_id: e.target.value }))}
-                  style={{
-                    width: '100%', padding: '9px 12px',
-                    border: '1px solid #e5e7eb', borderRadius: '8px',
-                    fontSize: '13px', backgroundColor: '#f9fafb',
-                    color: '#374151', outline: 'none', cursor: 'pointer'
-                  }}
-                >
-                  {mentees.map(m => (
-                    <option key={m.id} value={m.id}>{m.full_name}</option>
-                  ))}
-                </select>
+                <>
+                  <select
+                    value={form.mentee_id}
+                    onChange={e => setForm(f => ({ ...f, mentee_id: e.target.value }))}
+                    style={{
+                      width: '100%', padding: '9px 12px',
+                      border: '1px solid #e5e7eb', borderRadius: '8px',
+                      fontSize: '13px', backgroundColor: '#f9fafb',
+                      color: '#374151', outline: 'none', cursor: 'pointer'
+                    }}
+                  >
+                    {mentees.map(m => (
+                      <option key={m.id} value={m.id}>{m.full_name}</option>
+                    ))}
+                  </select>
+                  {form.mentee_id && (
+                    <div style={{ marginTop: '6px', display: 'flex', gap: '12px' }}>
+                      <a
+                        href={`/dashboard/portfolio/${form.mentee_id}`}
+                        style={{ fontSize: '12px', color: '#1a56db', fontWeight: 600, textDecoration: 'none' }}
+                      >
+                        View Portfolio →
+                      </a>
+                      <a
+                        href={`/dashboard/portfolio/${form.mentee_id}/rpms-pdf`}
+                        style={{ fontSize: '12px', color: '#6d28d9', fontWeight: 600, textDecoration: 'none' }}
+                      >
+                        RPMS Evidence PDF →
+                      </a>
+                    </div>
+                  )}
+                </>
               )}
             </div>
 
@@ -667,12 +685,20 @@ export default function MTDashboard() {
                       <td style={{ padding: '10px 12px', color: '#374151' }}>
                         {mentee?.full_name || '—'}
                         {mentee && (
-    
-                            href={`/dashboard/portfolio/${mentee.id}`}
-                            style={{ display: 'block', fontSize: '11px', color: '#1a56db', fontWeight: 600, marginTop: '2px', textDecoration: 'none' }}
-                                                >
-                            View Portfolio →
-                          </a>
+                          <div style={{ marginTop: '2px', display: 'flex', gap: '8px' }}>
+                            <a
+                              href={`/dashboard/portfolio/${mentee.id}`}
+                              style={{ fontSize: '11px', color: '#1a56db', fontWeight: 600, textDecoration: 'none' }}
+                            >
+                              Portfolio →
+                            </a>
+                            <a
+                              href={`/dashboard/portfolio/${mentee.id}/rpms-pdf`}
+                              style={{ fontSize: '11px', color: '#6d28d9', fontWeight: 600, textDecoration: 'none' }}
+                            >
+                              RPMS PDF →
+                            </a>
+                          </div>
                         )}
                       </td>
                       <td style={{ padding: '10px 12px', color: '#6b7280', maxWidth: '180px' }}>
