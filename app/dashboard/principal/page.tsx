@@ -13,6 +13,7 @@ import {
 import LogoutButton from '@/app/components/LogoutButton'
 import AdminUserActions from '@/app/components/AdminUserActions'
 import Image from 'next/image'
+import NotificationBell from '@/app/components/NotificationBell'
 
 const ACTIVITY_TARGETS: Record<string, number> = {
   classroom_observation: 5,
