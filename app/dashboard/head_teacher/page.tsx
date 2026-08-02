@@ -689,6 +689,22 @@ export default function HeadTeacherDashboard() {
                         </td>
                         <td style={{ padding: '10px 12px', color: '#374151' }}>
                           {getUserName(act.mentee_id)}
+                          {act.mentee_id && (
+                            <div style={{ marginTop: '2px', display: 'flex', gap: '8px' }}>
+                              <a
+                                href={`/dashboard/portfolio/${act.mentee_id}`}
+                                style={{ fontSize: '11px', color: '#1a56db', fontWeight: 600, textDecoration: 'none' }}
+                              >
+                                Portfolio →
+                              </a>
+                              <a
+                                href={`/dashboard/portfolio/${act.mentee_id}/rpms-pdf`}
+                                style={{ fontSize: '11px', color: '#6d28d9', fontWeight: 600, textDecoration: 'none' }}
+                              >
+                                RPMS PDF →
+                              </a>
+                            </div>
+                          )}
                         </td>
                         <td style={{ padding: '10px 12px', color: '#6b7280', maxWidth: '200px' }}>
                           {act.notes || <span style={{ color: '#d1d5db' }}>—</span>}
