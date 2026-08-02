@@ -267,6 +267,22 @@ export default function MenteeDashboard() {
                 MT: {mtProfile.full_name}
               </p>
             )}
+            {profile && (
+              <div style={{ display: 'flex', gap: '10px', marginTop: '3px', justifyContent: 'flex-end' }}>
+                <a
+                  href={`/dashboard/portfolio/${profile.id}`}
+                  style={{ fontSize: '11px', color: '#93c5fd', fontWeight: 600, textDecoration: 'none' }}
+                >
+                  View Portfolio →
+                </a>
+                <a
+                  href={`/dashboard/portfolio/${profile.id}/rpms-pdf`}
+                  style={{ fontSize: '11px', color: '#c4b5fd', fontWeight: 600, textDecoration: 'none' }}
+                >
+                  RPMS Evidence PDF →
+                </a>
+              </div>
+            )}
           </div>
           <NotificationBell />
           <a href="/dashboard/calendar" style={{ fontSize: '13px', color: 'rgba(200,220,255,0.85)', textDecoration: 'none' }}>
