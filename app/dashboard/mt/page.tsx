@@ -352,6 +352,9 @@ export default function MTDashboard() {
             </p>
           </div>
           <NotificationBell />
+          <a href="/dashboard/calendar" style={{ fontSize: '13px', color: 'rgba(200,220,255,0.85)', textDecoration: 'none' }}>
+            📅 Calendar
+          </a>
           <LogoutButton />
         </div>
       </div>
