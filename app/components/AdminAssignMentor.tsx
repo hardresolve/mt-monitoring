@@ -58,7 +58,7 @@ export default function AdminAssignMentor({
     setSaving(true)
     const { error } = await supabase
       .from('users')
-      .update({ mentor_id: mentorId })
+      .update({ assigned_mt_id: mentorId })
       .eq('id', menteeId)
     setSaving(false)
     setOpen(false)
