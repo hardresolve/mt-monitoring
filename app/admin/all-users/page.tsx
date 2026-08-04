@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import AdminUserActions from '@/app/components/AdminUserActions'
 import AdminAddUserForm from '@/app/components/AdminAddUserForm'
-import AdminRepairLegacyAccounts from '@/app/components/AdminRepairLegacyAccounts'
+import AdminAssignMentor from '@/app/components/AdminAssignMentor'
 import type { UserProfile } from '@/lib/types'
 
 const ROLE_LABELS: Record<string, string> = {
@@ -56,6 +56,9 @@ export default function SuperAdminPage() {
     setUsers(data || [])
   }
 
+  // id -> full_name lookup, used to show the assigned mentor's name on each mentee row
+  const nameById = new Map(users.map(u => [u.id, u.full_name]))
+
   const filtered = users.filter(u => {
     const matchesRole = roleFilter === 'all' || u.role === roleFilter
     const matchesSearch =
@@ -88,8 +91,6 @@ export default function SuperAdminPage() {
         <p style={{ fontSize: '13px', color: '#6b7280', marginBottom: '20px' }}>
           Correct emails or reset passwords for any account in the system.
         </p>
-
-        <AdminRepairLegacyAccounts />
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '12px' }}>
           <AdminAddUserForm onCreated={loadUsers} />
@@ -146,11 +147,25 @@ export default function SuperAdminPage() {
                     </div>
                     <span style={{ fontSize: '12px', color: '#6b7280' }}>{u.email}</span>
                   </div>
-                  <AdminUserActions
-                    targetUserId={u.id}
-                    currentEmail={u.email}
-                    onUpdated={loadUsers}
-                  />
+
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                    <AdminUserActions
+                      targetUserId={u.id}
+                      currentEmail={u.email}
+                      onUpdated={loadUsers}
+                    />
+
+                    {u.role === 'mentee' && (
+                      <AdminAssignMentor
+                        menteeId={u.id}
+                        currentMentorId={(u as any).mentor_id}
+                        currentMentorName={
+                          (u as any).mentor_id ? nameById.get((u as any).mentor_id) ?? 'Unknown' : null
+                        }
+                        onUpdated={loadUsers}
+                      />
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
