@@ -158,9 +158,9 @@ export default function SuperAdminPage() {
                     {u.role === 'mentee' && (
                       <AdminAssignMentor
                         menteeId={u.id}
-                        currentMentorId={(u as any).mentor_id}
+                        currentMentorId={(u as any).assigned_mt_id}
                         currentMentorName={
-                          (u as any).mentor_id ? nameById.get((u as any).mentor_id) ?? 'Unknown' : null
+                          (u as any).assigned_mt_id ? nameById.get((u as any).assigned_mt_id) ?? 'Unknown' : null
                         }
                         onUpdated={loadUsers}
                       />
