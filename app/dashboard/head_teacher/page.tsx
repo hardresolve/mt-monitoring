@@ -12,8 +12,8 @@ import {
 } from '@/lib/types'
 import LogoutButton from '@/app/components/LogoutButton'
 import AdminUserActions from '@/app/components/AdminUserActions'
+import DepartmentComplianceChart from '@/app/components/DepartmentComplianceChart'
 import Image from 'next/image'
-import NotificationBell from '@/app/components/NotificationBell'
 
 const ACTIVITY_TARGETS: Record<string, number> = {
   classroom_observation: 5,
@@ -276,10 +276,6 @@ export default function HeadTeacherDashboard() {
               ⚙ Super Admin
             </a>
           )}
-          <NotificationBell />
-          <a href="/dashboard/calendar" style={{ fontSize: '13px', color: 'rgba(200,220,255,0.85)', textDecoration: 'none' }}>
-            📅 Calendar
-          </a>          
           <LogoutButton />
         </div>
       </div>
@@ -325,6 +321,16 @@ export default function HeadTeacherDashboard() {
             </div>
           )
         })()}
+
+        {/* Department-wide compliance comparison (school-wide, own department highlighted) */}
+        {!selectedMT && (
+          <DepartmentComplianceChart
+            masterTeachers={allUsers.filter(u => u.role === 'master_teacher')}
+            getOverallStatus={getOverallStatus}
+            filterTerm={filterTerm}
+            ownDepartment={profile?.subject_area}
+          />
+        )}
 
         {/* Term filter + section title */}
         {!selectedMT && (
@@ -689,22 +695,6 @@ export default function HeadTeacherDashboard() {
                         </td>
                         <td style={{ padding: '10px 12px', color: '#374151' }}>
                           {getUserName(act.mentee_id)}
-                          {act.mentee_id && (
-                            <div style={{ marginTop: '2px', display: 'flex', gap: '8px' }}>
-                              <a
-                                href={`/dashboard/portfolio/${act.mentee_id}`}
-                                style={{ fontSize: '11px', color: '#1a56db', fontWeight: 600, textDecoration: 'none' }}
-                              >
-                                Portfolio →
-                              </a>
-                              <a
-                                href={`/dashboard/portfolio/${act.mentee_id}/rpms-pdf`}
-                                style={{ fontSize: '11px', color: '#6d28d9', fontWeight: 600, textDecoration: 'none' }}
-                              >
-                                RPMS PDF →
-                              </a>
-                            </div>
-                          )}
                         </td>
                         <td style={{ padding: '10px 12px', color: '#6b7280', maxWidth: '200px' }}>
                           {act.notes || <span style={{ color: '#d1d5db' }}>—</span>}
