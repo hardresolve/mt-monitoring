@@ -12,6 +12,7 @@ import {
 } from '@/lib/types'
 import LogoutButton from '@/app/components/LogoutButton'
 import AdminUserActions from '@/app/components/AdminUserActions'
+import DepartmentComplianceChart from '@/app/components/DepartmentComplianceChart'
 import Image from 'next/image'
 
 const ACTIVITY_TARGETS: Record<string, number> = {
@@ -320,6 +321,16 @@ export default function HeadTeacherDashboard() {
             </div>
           )
         })()}
+
+        {/* Department-wide compliance comparison (school-wide, own department highlighted) */}
+        {!selectedMT && (
+          <DepartmentComplianceChart
+            masterTeachers={masterTeachers}
+            getOverallStatus={getOverallStatus}
+            filterTerm={filterTerm}
+            ownDepartment={profile?.subject_area}
+          />
+        )}
 
         {/* Term filter + section title */}
         {!selectedMT && (
