@@ -12,10 +12,8 @@ import {
 } from '@/lib/types'
 import LogoutButton from '@/app/components/LogoutButton'
 import AdminUserActions from '@/app/components/AdminUserActions'
+import DepartmentComplianceChart from '@/app/components/DepartmentComplianceChart'
 import Image from 'next/image'
-import NotificationBell from '@/app/components/NotificationBell'
-import AdminOverrideModal from '@/app/components/AdminOverrideModal'
-import OverrideLogPanel from '@/app/components/OverrideLogPanel'
 
 const ACTIVITY_TARGETS: Record<string, number> = {
   classroom_observation: 5,
@@ -52,7 +50,6 @@ export default function PrincipalDashboard() {
   const [loading, setLoading] = useState(true)
   const [filterTerm, setFilterTerm] = useState<Term>('term1')
   const [selectedMT, setSelectedMT] = useState<UserProfile | null>(null)
-  const [resolvingActivity, setResolvingActivity] = useState<Activity | null>(null)
 
   useEffect(() => {
     loadData()
@@ -284,10 +281,6 @@ export default function PrincipalDashboard() {
               {masterTeachers.length} Master Teacher{masterTeachers.length !== 1 ? 's' : ''} under supervision
             </p>
           </div>
-          <NotificationBell />
-          <a href="/dashboard/calendar" style={{ fontSize: '13px', color: 'rgba(200,220,255,0.85)', textDecoration: 'none' }}>
-            📅 Calendar
-          </a>          
           <LogoutButton />
         </div>
       </div>
@@ -334,11 +327,13 @@ export default function PrincipalDashboard() {
           )
         })()}
 
-        {/* Accountability log: full history of admin dispute resolutions */}
+        {/* Department-wide compliance comparison */}
         {!selectedMT && (
-          <div style={{ marginBottom: '24px' }}>
-            <OverrideLogPanel activities={allActivities} allUsers={allUsers} />
-          </div>
+          <DepartmentComplianceChart
+            masterTeachers={masterTeachers}
+            getOverallStatus={getOverallStatus}
+            filterTerm={filterTerm}
+          />
         )}
 
         {/* Term filter + section title */}
@@ -728,22 +723,6 @@ export default function PrincipalDashboard() {
                         </td>
                         <td style={{ padding: '10px 12px', color: '#374151' }}>
                           {getUserName(act.mentee_id)}
-                          {act.mentee_id && (
-                            <div style={{ marginTop: '2px', display: 'flex', gap: '8px' }}>
-                              <a
-                                href={`/dashboard/portfolio/${act.mentee_id}`}
-                                style={{ fontSize: '11px', color: '#1a56db', fontWeight: 600, textDecoration: 'none' }}
-                              >
-                                Portfolio →
-                              </a>
-                              <a
-                                href={`/dashboard/portfolio/${act.mentee_id}/rpms-pdf`}
-                                style={{ fontSize: '11px', color: '#6d28d9', fontWeight: 600, textDecoration: 'none' }}
-                              >
-                                RPMS PDF →
-                              </a>
-                            </div>
-                          )}
                         </td>
                         <td style={{ padding: '10px 12px', color: '#6b7280', maxWidth: '200px' }}>
                           {act.notes || <span style={{ color: '#d1d5db' }}>—</span>}
@@ -772,17 +751,6 @@ export default function PrincipalDashboard() {
                               {act.dispute_reason}
                             </p>
                           )}
-                          {act.status === 'disputed' && (
-                            <button
-                              onClick={() => setResolvingActivity(act)}
-                              style={{
-                                marginTop: '6px', fontSize: '11px', fontWeight: 600, color: '#1a56db',
-                                background: 'none', border: 'none', cursor: 'pointer', padding: 0
-                              }}
-                            >
-                              Resolve →
-                            </button>
-                          )}
                         </td>
                       </tr>
                     ))}
@@ -794,18 +762,6 @@ export default function PrincipalDashboard() {
         )}
 
       </div>
-
-      {resolvingActivity && (
-        <AdminOverrideModal
-          activity={resolvingActivity}
-          menteeName={getUserName(resolvingActivity.mentee_id)}
-          onClose={() => setResolvingActivity(null)}
-          onResolved={(updated) => {
-            setAllActivities(prev => prev.map(a => a.id === updated.id ? updated : a))
-            setResolvingActivity(null)
-          }}
-        />
-      )}
     </main>
   )
 }
