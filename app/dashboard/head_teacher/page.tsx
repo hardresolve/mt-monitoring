@@ -12,34 +12,12 @@ import {
 } from '@/lib/types'
 import LogoutButton from '@/app/components/LogoutButton'
 import AdminUserActions from '@/app/components/AdminUserActions'
-import DepartmentComplianceChart from '@/app/components/DepartmentComplianceChart'
 import Image from 'next/image'
 
-function getCount(mtId: string, type: string, term: Term) {
-  // Only count verified activities
-  return allActivities.filter(a =>
-    a.mt_id === mtId &&
-    a.activity_type === type &&
-    a.term === term &&
-    a.status === 'verified'
-  ).length
-}
-
-function getVerifiedCount(mtId: string, type: string, term: Term) {
-  return getCount(mtId, type, term)
-}
-
-function getOverallStatus(mtId: string, term: Term) {
-  const total = getCount(mtId, 'classroom_observation', term)
-    + getCount(mtId, 'mentoring_coaching', term)
-    + getCount(mtId, 'lac_session', term)
-
-  // Cap at 11 so doing extra sessions doesn't break the percentage
-  const pct = Math.min(Math.round((total / 11) * 100), 100)
-
-  if (pct >= 100) return 'on-track'
-  if (pct >= 50) return 'behind'
-  return 'critical'
+const ACTIVITY_TARGETS: Record<string, number> = {
+  classroom_observation: 5,
+  mentoring_coaching: 5,
+  lac_session: 1,
 }
 
 // Some subject_area values use different naming/abbreviations, and MT
@@ -342,16 +320,6 @@ export default function HeadTeacherDashboard() {
             </div>
           )
         })()}
-
-        {/* Department-wide compliance comparison (school-wide, own department highlighted) */}
-        {!selectedMT && (
-          <DepartmentComplianceChart
-            masterTeachers={allUsers.filter(u => u.role === 'master_teacher')}
-            getOverallStatus={getOverallStatus}
-            filterTerm={filterTerm}
-            ownDepartment={profile?.subject_area}
-          />
-        )}
 
         {/* Term filter + section title */}
         {!selectedMT && (
