@@ -110,10 +110,16 @@ export default function HeadTeacherDashboard() {
     const total = getCount(mtId, 'classroom_observation', term)
       + getCount(mtId, 'mentoring_coaching', term)
       + getCount(mtId, 'lac_session', term)
-    const pct = Math.round((total / 24) * 100)
+    const pct = Math.round((total / 11) * 100)
     if (pct >= 100) return 'on-track'
     if (pct >= 50) return 'behind'
     return 'critical'
+  }
+
+  function getTotalLogged(mtId: string, term: Term) {
+    return getCount(mtId, 'classroom_observation', term)
+      + getCount(mtId, 'mentoring_coaching', term)
+      + getCount(mtId, 'lac_session', term)
   }
 
   function getUserName(id: string) {
@@ -325,8 +331,9 @@ export default function HeadTeacherDashboard() {
         {/* Department-wide compliance comparison (school-wide, own department highlighted) */}
         {!selectedMT && (
           <DepartmentComplianceChart
-            masterTeachers={masterTeachers}
+            masterTeachers={allUsers.filter(u => u.role === 'master_teacher')}
             getOverallStatus={getOverallStatus}
+            getActivityCount={getTotalLogged}
             filterTerm={filterTerm}
             ownDepartment={profile?.subject_area}
           />
