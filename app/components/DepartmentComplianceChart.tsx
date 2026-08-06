@@ -26,9 +26,11 @@ function displayLabel(subject: string | null | undefined): string {
 }
 
 interface DepartmentComplianceChartProps {
-  /** ALL master teachers school-wide (not just one department) */
+  /** ALL master teachers being compared (school-wide, or one head teacher's own dept scope) */
   masterTeachers: UserProfile[]
   getOverallStatus: (mtId: string, term: Term) => string
+  /** Total sessions logged (any type) for this MT this term — used to flag zero-activity MTs */
+  getActivityCount: (mtId: string, term: Term) => number
   filterTerm: Term
   /** Pass the viewer's own subject_area (head teachers) to highlight their row. Omit for principals. */
   ownDepartment?: string | null
@@ -38,26 +40,30 @@ interface DepartmentComplianceChartProps {
 export default function DepartmentComplianceChart({
   masterTeachers,
   getOverallStatus,
+  getActivityCount,
   filterTerm,
   ownDepartment,
   title = 'Department Compliance Comparison',
 }: DepartmentComplianceChartProps) {
   const ownNormalized = ownDepartment ? normalizeSubject(ownDepartment) : null
 
-  const groups = new Map<string, { label: string; total: number; complied: number }>()
+  const groups = new Map<string, { label: string; total: number; complied: number; noActivity: number }>()
 
   masterTeachers.forEach(mt => {
     const key = normalizeSubject(mt.subject_area) || '\u2014unassigned\u2014'
     const status = getOverallStatus(mt.id, filterTerm)
+    const activityCount = getActivityCount(mt.id, filterTerm)
     const existing = groups.get(key)
     if (existing) {
       existing.total += 1
       if (status === 'on-track') existing.complied += 1
+      if (activityCount === 0) existing.noActivity += 1
     } else {
       groups.set(key, {
         label: displayLabel(mt.subject_area),
         total: 1,
         complied: status === 'on-track' ? 1 : 0,
+        noActivity: activityCount === 0 ? 1 : 0,
       })
     }
   })
@@ -68,6 +74,7 @@ export default function DepartmentComplianceChart({
       label: g.label,
       total: g.total,
       complied: g.complied,
+      noActivity: g.noActivity,
       pct: g.total > 0 ? Math.round((g.complied / g.total) * 100) : 0,
     }))
     .sort((a, b) => b.pct - a.pct)
@@ -90,7 +97,7 @@ export default function DepartmentComplianceChart({
         Share of Master Teachers fully on track this term, by department
       </p>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
         {rows.map(row => {
           const isOwn = ownNormalized !== null && row.key === ownNormalized
           const barColor = row.pct >= 100 ? '#059669' : row.pct >= 50 ? '#d97706' : '#dc2626'
@@ -98,7 +105,7 @@ export default function DepartmentComplianceChart({
             <div
               key={row.key}
               style={{
-                padding: isOwn ? '8px 10px' : '0',
+                padding: isOwn ? '10px 12px' : '0',
                 borderRadius: '8px',
                 background: isOwn ? '#eff6ff' : 'transparent',
                 border: isOwn ? '1px solid #bfdbfe' : 'none',
@@ -121,6 +128,19 @@ export default function DepartmentComplianceChart({
                   transition: 'width 0.4s ease',
                 }} />
               </div>
+              {row.noActivity > 0 && (
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                  marginTop: '6px',
+                }}>
+                  <span style={{ fontSize: '11px' }}>🚫</span>
+                  <span style={{ fontSize: '11px', color: '#991b1b', fontWeight: 600 }}>
+                    {row.noActivity} MT{row.noActivity > 1 ? 's' : ''} with zero sessions logged this term
+                  </span>
+                </div>
+              )}
             </div>
           )
         })}
