@@ -12,6 +12,7 @@ import {
 } from '@/lib/types'
 import LogoutButton from '@/app/components/LogoutButton'
 import AdminUserActions from '@/app/components/AdminUserActions'
+import DepartmentComplianceChart from '@/app/components/DepartmentComplianceChart'
 import Image from 'next/image'
 
 const ACTIVITY_TARGETS: Record<string, number> = {
@@ -325,6 +326,15 @@ export default function PrincipalDashboard() {
             </div>
           )
         })()}
+
+        {/* Department-wide compliance comparison */}
+        {!selectedMT && (
+          <DepartmentComplianceChart
+            masterTeachers={masterTeachers}
+            getOverallStatus={getOverallStatus}
+            filterTerm={filterTerm}
+          />
+        )}
 
         {/* Term filter + section title */}
         {!selectedMT && (
