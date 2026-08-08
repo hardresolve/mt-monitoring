@@ -13,6 +13,9 @@ import {
 } from '@/lib/types'
 import LogoutButton from '@/app/components/LogoutButton'
 import Image from 'next/image'
+import NotificationBell from '@/app/components/NotificationBell'
+import TargetTracker from '@/app/components/TargetTracker'
+import SessionTemplatePicker from '@/app/components/SessionTemplatePicker'
 
 const CURRENT_TERM: Term = 'term1'
 const CURRENT_YEAR = '2026-2027'
@@ -114,9 +117,12 @@ export default function MTDashboard() {
     setActivities(acts || [])
 
     // Sessions where THIS master teacher is the mentee (i.e. logged about
-    // them by their own mentor MT). This MT dashboard previously only ever
-    // loaded activities where mt_id = me, so any MT who is also assigned as
-    // someone else's mentee never saw what was logged about them.
+    // them by their own mentor MT). This dashboard previously only ever
+    // loaded activities where mt_id = me, so any MT who is also assigned
+    // as someone else's mentee never saw what was logged about them, and
+    // had no way to confirm or dispute it — the confirm/dispute UI lived
+    // only on /dashboard/mentee, which redirects anyone whose role isn't
+    // exactly 'mentee' straight back to /login.
     const { data: menteeActs } = await supabase
       .from('activities')
       .select('*')
@@ -322,25 +328,25 @@ export default function MTDashboard() {
 
   async function handleDeleteActivity(id: string) {
     setDeletingId(id)
+    setErrorMsg('')
 
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { setDeletingId(null); return }
 
-    // Delete linked confirmations first to avoid foreign key conflict
-    await supabase
-      .from('confirmations')
-      .delete()
-      .eq('activity_id', id)
-
-    // Then delete the activity itself
-    const { error } = await supabase
-      .from('activities')
-      .delete()
-      .eq('id', id)
-      .eq('mt_id', user.id)
+    // Deletes the activity and any linked confirmation atomically via
+    // a SECURITY DEFINER function (mt_delete_activity). We used to
+    // delete confirmations then activities directly from the client,
+    // but RLS on "confirmations" is scoped to the mentee who owns it,
+    // so master teachers could never actually remove that row — it
+    // silently deleted 0 rows, then the activities delete failed on
+    // the leftover foreign key. The RPC does its own auth.uid() check
+    // server-side and bypasses that mismatch safely.
+    const { error } = await supabase.rpc('mt_delete_activity', {
+      p_activity_id: id,
+    })
 
     if (error) {
-      setErrorMsg('Failed to delete activity. Please try again.')
+      setErrorMsg(error.message || 'Failed to delete activity. Please try again.')
       setDeletingId(null)
       setConfirmDeleteId(null)
       return
@@ -447,6 +453,10 @@ export default function MTDashboard() {
               {profile?.subject_area} · SY {CURRENT_YEAR}
             </p>
           </div>
+          <NotificationBell />
+          <a href="/dashboard/calendar" style={{ fontSize: '13px', color: 'rgba(200,220,255,0.85)', textDecoration: 'none' }}>
+            📅 Calendar
+          </a>
           <LogoutButton />
         </div>
       </div>
@@ -688,6 +698,11 @@ export default function MTDashboard() {
             )
           })}
         </div>
+        <TargetTracker
+          activities={activities.filter(a => a.term === CURRENT_TERM)}
+          term={CURRENT_TERM}
+          schoolYear={CURRENT_YEAR}
+        />
 
         {/* Log Activity form */}
         <div style={{
@@ -719,6 +734,10 @@ export default function MTDashboard() {
             </div>
           </div>
 
+          <SessionTemplatePicker
+            onPick={(activity_type, notes) => setForm(f => ({ ...f, activity_type, notes }))}
+          />
+
           <div style={{
             display: 'grid',
             gridTemplateColumns: '1fr 1fr',
@@ -735,20 +754,38 @@ export default function MTDashboard() {
                   No mentees assigned yet. Contact your administrator.
                 </p>
               ) : (
-                <select
-                  value={form.mentee_id}
-                  onChange={e => setForm(f => ({ ...f, mentee_id: e.target.value }))}
-                  style={{
-                    width: '100%', padding: '9px 12px',
-                    border: '1px solid #e5e7eb', borderRadius: '8px',
-                    fontSize: '13px', backgroundColor: '#f9fafb',
-                    color: '#374151', outline: 'none', cursor: 'pointer'
-                  }}
-                >
-                  {mentees.map(m => (
-                    <option key={m.id} value={m.id}>{m.full_name}</option>
-                  ))}
-                </select>
+                <>
+                  <select
+                    value={form.mentee_id}
+                    onChange={e => setForm(f => ({ ...f, mentee_id: e.target.value }))}
+                    style={{
+                      width: '100%', padding: '9px 12px',
+                      border: '1px solid #e5e7eb', borderRadius: '8px',
+                      fontSize: '13px', backgroundColor: '#f9fafb',
+                      color: '#374151', outline: 'none', cursor: 'pointer'
+                    }}
+                  >
+                    {mentees.map(m => (
+                      <option key={m.id} value={m.id}>{m.full_name}</option>
+                    ))}
+                  </select>
+                  {form.mentee_id && (
+                    <div style={{ marginTop: '6px', display: 'flex', gap: '12px' }}>
+                      <a
+                        href={`/dashboard/portfolio/${form.mentee_id}`}
+                        style={{ fontSize: '12px', color: '#1a56db', fontWeight: 600, textDecoration: 'none' }}
+                      >
+                        View Portfolio →
+                      </a>
+                      <a
+                        href={`/dashboard/portfolio/${form.mentee_id}/rpms-pdf`}
+                        style={{ fontSize: '12px', color: '#6d28d9', fontWeight: 600, textDecoration: 'none' }}
+                      >
+                        RPMS Evidence PDF →
+                      </a>
+                    </div>
+                  )}
+                </>
               )}
             </div>
 
@@ -943,6 +980,22 @@ export default function MTDashboard() {
                       </td>
                       <td style={{ padding: '10px 12px', color: '#374151' }}>
                         {mentee?.full_name || '—'}
+                        {mentee && (
+                          <div style={{ marginTop: '2px', display: 'flex', gap: '8px' }}>
+                            <a
+                              href={`/dashboard/portfolio/${mentee.id}`}
+                              style={{ fontSize: '11px', color: '#1a56db', fontWeight: 600, textDecoration: 'none' }}
+                            >
+                              Portfolio →
+                            </a>
+                            <a
+                              href={`/dashboard/portfolio/${mentee.id}/rpms-pdf`}
+                              style={{ fontSize: '11px', color: '#6d28d9', fontWeight: 600, textDecoration: 'none' }}
+                            >
+                              RPMS PDF →
+                            </a>
+                          </div>
+                        )}
                       </td>
                       <td style={{ padding: '10px 12px', color: '#6b7280', maxWidth: '180px' }}>
                         {act.notes ? (
