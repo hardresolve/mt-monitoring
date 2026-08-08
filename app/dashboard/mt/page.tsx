@@ -13,12 +13,15 @@ import {
 } from '@/lib/types'
 import LogoutButton from '@/app/components/LogoutButton'
 import Image from 'next/image'
-import NotificationBell from '@/app/components/NotificationBell'
-import TargetTracker from '@/app/components/TargetTracker'
-import SessionTemplatePicker from '@/app/components/SessionTemplatePicker'
 
 const CURRENT_TERM: Term = 'term1'
 const CURRENT_YEAR = '2026-2027'
+
+const ACTIVITY_TARGETS: Record<string, number> = {
+  classroom_observation: 5,
+  mentoring_coaching: 5,
+  lac_session: 1,
+}
 
 export default function MTDashboard() {
   const router = useRouter()
@@ -52,6 +55,13 @@ export default function MTDashboard() {
   const [editError, setEditError] = useState('')
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+
+  // --- Sessions logged ABOUT this MT by their own mentor (mentee-side inbox) ---
+  const [menteeActivities, setMenteeActivities] = useState<Activity[]>([])
+  const [menteeActivityAuthors, setMenteeActivityAuthors] = useState<Record<string, string>>({})
+  const [verifyDisputeId, setVerifyDisputeId] = useState<string | null>(null)
+  const [verifyDisputeReason, setVerifyDisputeReason] = useState('')
+  const [verifyActionMsg, setVerifyActionMsg] = useState<{ id: string; msg: string; type: 'success' | 'error' } | null>(null)
 
   useEffect(() => {
     loadData()
@@ -102,7 +112,97 @@ export default function MTDashboard() {
       .order('date_conducted', { ascending: false })
 
     setActivities(acts || [])
+
+    // Sessions where THIS master teacher is the mentee (i.e. logged about
+    // them by their own mentor MT). This MT dashboard previously only ever
+    // loaded activities where mt_id = me, so any MT who is also assigned as
+    // someone else's mentee never saw what was logged about them.
+    const { data: menteeActs } = await supabase
+      .from('activities')
+      .select('*')
+      .eq('mentee_id', user.id)
+      .order('date_conducted', { ascending: false })
+
+    setMenteeActivities(menteeActs || [])
+
+    if (menteeActs && menteeActs.length > 0) {
+      const authorIds = Array.from(new Set(menteeActs.map(a => a.mt_id)))
+      const { data: authors } = await supabase
+        .from('users')
+        .select('id, full_name')
+        .in('id', authorIds)
+
+      const map: Record<string, string> = {}
+      ;(authors || []).forEach(a => { map[a.id] = a.full_name })
+      setMenteeActivityAuthors(map)
+    } else {
+      setMenteeActivityAuthors({})
+    }
+
     setLoading(false)
+  }
+
+  async function handleVerifyConfirm(activity: Activity) {
+    setVerifyActionMsg(null)
+
+    const { error: updateError } = await supabase
+      .from('activities')
+      .update({ status: 'verified' })
+      .eq('id', activity.id)
+
+    if (updateError) {
+      setVerifyActionMsg({ id: activity.id, msg: 'Failed to confirm. Please try again.', type: 'error' })
+      return
+    }
+
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) {
+      await supabase.from('confirmations').insert({
+        activity_id: activity.id,
+        mentee_id: user.id,
+        confirmed: true,
+        reason: null,
+      })
+    }
+
+    setVerifyActionMsg({ id: activity.id, msg: 'Session confirmed. Thank you!', type: 'success' })
+    setMenteeActivities(prev => prev.map(a => a.id === activity.id ? { ...a, status: 'verified' } : a))
+  }
+
+  async function handleVerifyDispute(activity: Activity) {
+    setVerifyActionMsg(null)
+
+    if (!verifyDisputeReason.trim()) {
+      setVerifyActionMsg({ id: activity.id, msg: 'Please enter a reason before disputing.', type: 'error' })
+      return
+    }
+
+    const { error: updateError } = await supabase
+      .from('activities')
+      .update({ status: 'disputed', dispute_reason: verifyDisputeReason.trim() })
+      .eq('id', activity.id)
+
+    if (updateError) {
+      setVerifyActionMsg({ id: activity.id, msg: 'Failed to dispute. Please try again.', type: 'error' })
+      return
+    }
+
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) {
+      await supabase.from('confirmations').insert({
+        activity_id: activity.id,
+        mentee_id: user.id,
+        confirmed: false,
+        reason: verifyDisputeReason.trim(),
+      })
+    }
+
+    setVerifyActionMsg({ id: activity.id, msg: 'Session disputed.', type: 'error' })
+    setMenteeActivities(prev => prev.map(a => a.id === activity.id
+      ? { ...a, status: 'disputed', dispute_reason: verifyDisputeReason.trim() }
+      : a))
+    setVerifyDisputeId(null)
+    setVerifyDisputeReason('')
   }
 
   async function handleSubmit() {
@@ -222,25 +322,25 @@ export default function MTDashboard() {
 
   async function handleDeleteActivity(id: string) {
     setDeletingId(id)
-    setErrorMsg('')
 
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { setDeletingId(null); return }
 
-    // Deletes the activity and any linked confirmation atomically via
-    // a SECURITY DEFINER function (mt_delete_activity). We used to
-    // delete confirmations then activities directly from the client,
-    // but RLS on "confirmations" is scoped to the mentee who owns it,
-    // so master teachers could never actually remove that row — it
-    // silently deleted 0 rows, then the activities delete failed on
-    // the leftover foreign key. The RPC does its own auth.uid() check
-    // server-side and bypasses that mismatch safely.
-    const { error } = await supabase.rpc('mt_delete_activity', {
-      p_activity_id: id,
-    })
+    // Delete linked confirmations first to avoid foreign key conflict
+    await supabase
+      .from('confirmations')
+      .delete()
+      .eq('activity_id', id)
+
+    // Then delete the activity itself
+    const { error } = await supabase
+      .from('activities')
+      .delete()
+      .eq('id', id)
+      .eq('mt_id', user.id)
 
     if (error) {
-      setErrorMsg(error.message || 'Failed to delete activity. Please try again.')
+      setErrorMsg('Failed to delete activity. Please try again.')
       setDeletingId(null)
       setConfirmDeleteId(null)
       return
@@ -250,6 +350,14 @@ export default function MTDashboard() {
     setSuccessMsg('Activity deleted successfully.')
     setDeletingId(null)
     setConfirmDeleteId(null)
+  }
+
+  function getCount(type: string, term: Term) {
+    return activities.filter(a => a.activity_type === type && a.term === term).length
+  }
+
+  function getVerifiedCount(type: string, term: Term) {
+    return activities.filter(a => a.activity_type === type && a.term === term && a.status === 'verified').length
   }
 
   const filteredActivities = activities.filter(a => a.term === filterTerm)
@@ -339,21 +447,247 @@ export default function MTDashboard() {
               {profile?.subject_area} · SY {CURRENT_YEAR}
             </p>
           </div>
-          <NotificationBell />
-          <a href="/dashboard/calendar" style={{ fontSize: '13px', color: 'rgba(200,220,255,0.85)', textDecoration: 'none' }}>
-            📅 Calendar
-          </a>
           <LogoutButton />
         </div>
       </div>
 
       <div style={{ padding: '1.5rem 2rem', maxWidth: '960px', margin: '0 auto' }}>
 
-        <TargetTracker
-          activities={activities.filter(a => a.term === CURRENT_TERM)}
-          term={CURRENT_TERM}
-          schoolYear={CURRENT_YEAR}
-        />
+        {/* Sessions logged about YOU by your own mentor — needs your confirm/dispute */}
+        {menteeActivities.length > 0 && (
+          <div style={{
+            backgroundColor: 'white',
+            border: '1px solid #fde68a',
+            borderRadius: '12px',
+            padding: '1.5rem',
+            marginBottom: '20px',
+            boxShadow: '0 1px 4px rgba(0,0,0,0.06)'
+          }}>
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: '10px',
+              marginBottom: '16px', paddingBottom: '14px', borderBottom: '1px solid #f3f4f6'
+            }}>
+              <div style={{
+                width: '32px', height: '32px',
+                background: 'linear-gradient(135deg, #d97706, #b45309)',
+                borderRadius: '8px',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: '16px'
+              }}>📥</div>
+              <div>
+                <h2 style={{ fontSize: '15px', fontWeight: 700, color: '#111827' }}>
+                  Sessions Logged About You
+                  {menteeActivities.filter(a => a.status === 'pending').length > 0 && (
+                    <span style={{
+                      marginLeft: '8px', fontSize: '11px', fontWeight: 700,
+                      backgroundColor: '#fef3c7', color: '#92400e',
+                      padding: '2px 8px', borderRadius: '20px'
+                    }}>
+                      {menteeActivities.filter(a => a.status === 'pending').length} pending
+                    </span>
+                  )}
+                </h2>
+                <p style={{ fontSize: '12px', color: '#9ca3af' }}>
+                  As someone else&apos;s mentee — confirm or dispute what your mentor logged for you
+                </p>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {menteeActivities.map(act => (
+                <div key={act.id} style={{
+                  border: `1px solid ${act.status === 'pending' ? '#fde68a' : '#f3f4f6'}`,
+                  borderRadius: '10px',
+                  padding: '1rem 1.25rem',
+                  backgroundColor: act.status === 'pending' ? '#fffdf5' : '#fafafa'
+                }}>
+                  <div style={{
+                    display: 'flex', justifyContent: 'space-between',
+                    alignItems: 'flex-start', marginBottom: '8px'
+                  }}>
+                    <div>
+                      <p style={{ fontSize: '14px', fontWeight: 600, color: '#111827', marginBottom: '3px' }}>
+                        {ACTIVITY_LABELS[act.activity_type]}
+                      </p>
+                      <p style={{ fontSize: '12px', color: '#9ca3af' }}>
+                        {new Date(act.date_conducted).toLocaleDateString('en-PH', {
+                          month: 'long', day: 'numeric', year: 'numeric'
+                        })} · {TERM_LABELS[act.term]}
+                        {menteeActivityAuthors[act.mt_id] && (
+                          <> · Logged by {menteeActivityAuthors[act.mt_id]}</>
+                        )}
+                      </p>
+                    </div>
+                    <span style={{
+                      backgroundColor: statusBg[act.status],
+                      color: statusColor[act.status],
+                      padding: '3px 12px', borderRadius: '20px',
+                      fontSize: '12px', fontWeight: 600, whiteSpace: 'nowrap',
+                      border: `1px solid ${statusColor[act.status]}33`
+                    }}>
+                      {act.status.charAt(0).toUpperCase() + act.status.slice(1)}
+                    </span>
+                  </div>
+
+                  {act.notes && (
+                    <p style={{
+                      fontSize: '13px', color: '#4b5563',
+                      backgroundColor: '#f9fafb', padding: '8px 12px',
+                      borderRadius: '6px', marginBottom: '10px',
+                      borderLeft: '3px solid #e5e7eb'
+                    }}>
+                      {act.notes}
+                    </p>
+                  )}
+
+                  {act.status === 'disputed' && act.dispute_reason && (
+                    <p style={{
+                      fontSize: '12px', color: '#991b1b',
+                      backgroundColor: '#fef2f2', padding: '7px 10px',
+                      borderRadius: '6px', marginBottom: '10px',
+                      borderLeft: '3px solid #fca5a5'
+                    }}>
+                      Your dispute: {act.dispute_reason}
+                    </p>
+                  )}
+
+                  {verifyActionMsg && verifyActionMsg.id === act.id && (
+                    <div style={{
+                      fontSize: '12px',
+                      color: verifyActionMsg.type === 'success' ? '#065f46' : '#991b1b',
+                      backgroundColor: verifyActionMsg.type === 'success' ? '#ecfdf5' : '#fef2f2',
+                      padding: '7px 10px', borderRadius: '6px',
+                      marginBottom: '10px', fontWeight: 500
+                    }}>
+                      {verifyActionMsg.msg}
+                    </div>
+                  )}
+
+                  {act.status === 'pending' && (
+                    <div>
+                      {verifyDisputeId === act.id ? (
+                        <div>
+                          <textarea
+                            value={verifyDisputeReason}
+                            onChange={e => setVerifyDisputeReason(e.target.value)}
+                            rows={2}
+                            placeholder="Explain why you are disputing this session..."
+                            style={{
+                              width: '100%', padding: '8px 10px',
+                              border: '1px solid #fca5a5', borderRadius: '8px',
+                              fontSize: '13px', marginBottom: '8px',
+                              boxSizing: 'border-box', resize: 'vertical',
+                              outline: 'none', backgroundColor: '#fff5f5'
+                            }}
+                          />
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            <button
+                              onClick={() => handleVerifyDispute(act)}
+                              style={{
+                                padding: '7px 18px', backgroundColor: '#ef4444',
+                                color: 'white', border: 'none', borderRadius: '8px',
+                                fontSize: '13px', fontWeight: 600, cursor: 'pointer'
+                              }}
+                            >
+                              Submit Dispute
+                            </button>
+                            <button
+                              onClick={() => { setVerifyDisputeId(null); setVerifyDisputeReason('') }}
+                              style={{
+                                padding: '7px 18px', backgroundColor: 'transparent',
+                                color: '#6b7280', border: '1px solid #e5e7eb',
+                                borderRadius: '8px', fontSize: '13px', cursor: 'pointer'
+                              }}
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <button
+                            onClick={() => handleVerifyConfirm(act)}
+                            style={{
+                              padding: '7px 18px',
+                              background: 'linear-gradient(135deg, #059669, #047857)',
+                              color: 'white', border: 'none', borderRadius: '8px',
+                              fontSize: '13px', fontWeight: 600, cursor: 'pointer',
+                              boxShadow: '0 2px 8px rgba(5,150,105,0.3)'
+                            }}
+                          >
+                            ✓ Confirm Session
+                          </button>
+                          <button
+                            onClick={() => { setVerifyDisputeId(act.id); setVerifyDisputeReason('') }}
+                            style={{
+                              padding: '7px 18px', backgroundColor: 'transparent',
+                              color: '#ef4444', border: '1px solid #fca5a5',
+                              borderRadius: '8px', fontSize: '13px', fontWeight: 600,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            ⚠ Dispute
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Progress cards */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(3, 1fr)',
+          gap: '14px',
+          marginBottom: '24px'
+        }}>
+          {Object.entries(ACTIVITY_TARGETS).map(([type, target]) => {
+            const logged = getCount(type, CURRENT_TERM)
+            const verified = getVerifiedCount(type, CURRENT_TERM)
+            const pct = Math.min(Math.round((logged / target) * 100), 100)
+            const color = pct >= 100 ? '#059669' : pct >= 50 ? '#d97706' : '#dc2626'
+            const trackColor = pct >= 100 ? '#6ee7b7' : pct >= 50 ? '#fde68a' : '#fca5a5'
+            const accentBorder = pct >= 100 ? '#6ee7b7' : pct >= 50 ? '#fde68a' : '#fca5a5'
+            return (
+              <div key={type} style={{
+                backgroundColor: 'white',
+                border: '1px solid #e5e7eb',
+                borderLeft: `4px solid ${accentBorder}`,
+                borderRadius: '12px',
+                padding: '1.1rem 1.25rem',
+                boxShadow: '0 1px 4px rgba(0,0,0,0.06)'
+              }}>
+                <p style={{ fontSize: '12px', color: '#6b7280', marginBottom: '6px', fontWeight: 500 }}>
+                  {ACTIVITY_LABELS[type as ActivityType]}
+                </p>
+                <p style={{ fontSize: '26px', fontWeight: 700, color, marginBottom: '2px', lineHeight: 1 }}>
+                  {logged}
+                  <span style={{ fontSize: '14px', color: '#9ca3af', fontWeight: 400 }}> / {target}</span>
+                </p>
+                <p style={{ fontSize: '11px', color: '#9ca3af', marginBottom: '10px' }}>
+                  {verified} verified · {logged - verified} pending/disputed
+                </p>
+                <div style={{
+                  height: '6px', backgroundColor: '#f3f4f6',
+                  borderRadius: '99px', overflow: 'hidden'
+                }}>
+                  <div style={{
+                    height: '100%',
+                    width: `${pct}%`,
+                    backgroundColor: trackColor,
+                    borderRadius: '99px',
+                    transition: 'width 0.4s ease'
+                  }} />
+                </div>
+                <p style={{ fontSize: '11px', color, marginTop: '4px', fontWeight: 600 }}>{pct}% complete</p>
+              </div>
+            )
+          })}
+        </div>
 
         {/* Log Activity form */}
         <div style={{
@@ -385,10 +719,6 @@ export default function MTDashboard() {
             </div>
           </div>
 
-          <SessionTemplatePicker
-            onPick={(activity_type, notes) => setForm(f => ({ ...f, activity_type, notes }))}
-          />
-
           <div style={{
             display: 'grid',
             gridTemplateColumns: '1fr 1fr',
@@ -405,38 +735,20 @@ export default function MTDashboard() {
                   No mentees assigned yet. Contact your administrator.
                 </p>
               ) : (
-                <>
-                  <select
-                    value={form.mentee_id}
-                    onChange={e => setForm(f => ({ ...f, mentee_id: e.target.value }))}
-                    style={{
-                      width: '100%', padding: '9px 12px',
-                      border: '1px solid #e5e7eb', borderRadius: '8px',
-                      fontSize: '13px', backgroundColor: '#f9fafb',
-                      color: '#374151', outline: 'none', cursor: 'pointer'
-                    }}
-                  >
-                    {mentees.map(m => (
-                      <option key={m.id} value={m.id}>{m.full_name}</option>
-                    ))}
-                  </select>
-                  {form.mentee_id && (
-                    <div style={{ marginTop: '6px', display: 'flex', gap: '12px' }}>
-                      <a
-                        href={`/dashboard/portfolio/${form.mentee_id}`}
-                        style={{ fontSize: '12px', color: '#1a56db', fontWeight: 600, textDecoration: 'none' }}
-                      >
-                        View Portfolio →
-                      </a>
-                      <a
-                        href={`/dashboard/portfolio/${form.mentee_id}/rpms-pdf`}
-                        style={{ fontSize: '12px', color: '#6d28d9', fontWeight: 600, textDecoration: 'none' }}
-                      >
-                        RPMS Evidence PDF →
-                      </a>
-                    </div>
-                  )}
-                </>
+                <select
+                  value={form.mentee_id}
+                  onChange={e => setForm(f => ({ ...f, mentee_id: e.target.value }))}
+                  style={{
+                    width: '100%', padding: '9px 12px',
+                    border: '1px solid #e5e7eb', borderRadius: '8px',
+                    fontSize: '13px', backgroundColor: '#f9fafb',
+                    color: '#374151', outline: 'none', cursor: 'pointer'
+                  }}
+                >
+                  {mentees.map(m => (
+                    <option key={m.id} value={m.id}>{m.full_name}</option>
+                  ))}
+                </select>
               )}
             </div>
 
@@ -631,22 +943,6 @@ export default function MTDashboard() {
                       </td>
                       <td style={{ padding: '10px 12px', color: '#374151' }}>
                         {mentee?.full_name || '—'}
-                        {mentee && (
-                          <div style={{ marginTop: '2px', display: 'flex', gap: '8px' }}>
-                            <a
-                              href={`/dashboard/portfolio/${mentee.id}`}
-                              style={{ fontSize: '11px', color: '#1a56db', fontWeight: 600, textDecoration: 'none' }}
-                            >
-                              Portfolio →
-                            </a>
-                            <a
-                              href={`/dashboard/portfolio/${mentee.id}/rpms-pdf`}
-                              style={{ fontSize: '11px', color: '#6d28d9', fontWeight: 600, textDecoration: 'none' }}
-                            >
-                              RPMS PDF →
-                            </a>
-                          </div>
-                        )}
                       </td>
                       <td style={{ padding: '10px 12px', color: '#6b7280', maxWidth: '180px' }}>
                         {act.notes ? (
